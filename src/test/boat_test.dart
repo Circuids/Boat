@@ -48,9 +48,21 @@ class MockBoatPlatform with MockPlatformInterfaceMixin implements BoatPlatform {
         playbackFrameCount: 0,
         uptime: Duration.zero,
       );
+
+  @override
+  Future<PermissionStatus> checkPermission(PermissionType type) async =>
+      PermissionStatus.granted;
+
+  @override
+  Future<PermissionStatus> requestPermission(PermissionType type) async =>
+      PermissionStatus.granted;
+
+  @override
+  Future<void> openAppSettings() async {}
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   final BoatPlatform initialPlatform = BoatPlatform.instance;
 
   test('$MethodChannelBoat is the default instance', () {
@@ -190,4 +202,86 @@ void main() {
       expect(const BoatStateException('x'), isA<BoatException>());
     });
   });
+
+  group('PermissionStatus', () {
+    test('fromString parses all values', () {
+      for (final status in PermissionStatus.values) {
+        expect(PermissionStatus.fromString(status.name), status);
+      }
+    });
+
+    test('fromString throws on unknown', () {
+      expect(() => PermissionStatus.fromString('invalid'), throwsArgumentError);
+    });
+
+    test('toChannelString round-trips', () {
+      for (final status in PermissionStatus.values) {
+        expect(PermissionStatus.fromString(status.toChannelString()), status);
+      }
+    });
+  });
+
+  group('PermissionType', () {
+    test('fromString parses all values', () {
+      for (final type in PermissionType.values) {
+        expect(PermissionType.fromString(type.name), type);
+      }
+    });
+
+    test('fromString throws on unknown', () {
+      expect(() => PermissionType.fromString('invalid'), throwsArgumentError);
+    });
+
+    test('toChannelString round-trips', () {
+      for (final type in PermissionType.values) {
+        expect(PermissionType.fromString(type.toChannelString()), type);
+      }
+    });
+  });
+
+  group('BoatPermission', () {
+    test('check delegates to platform', () async {
+      final mock = MockBoatPlatform();
+      BoatPlatform.instance = mock;
+      final status = await BoatPermission.check(PermissionType.microphone);
+      expect(status, PermissionStatus.granted);
+      BoatPlatform.instance = MethodChannelBoat();
+    });
+
+    test('request delegates to platform', () async {
+      final mock = MockBoatPlatform();
+      BoatPlatform.instance = mock;
+      final status = await BoatPermission.request(PermissionType.microphone);
+      expect(status, PermissionStatus.granted);
+      BoatPlatform.instance = MethodChannelBoat();
+    });
+  });
+
+  group('BoatEngine permission gate', () {
+    test('start throws BoatPermissionException when not granted', () async {
+      final mock = _DeniedMockPlatform();
+      final engine = BoatEngine(platform: mock);
+      expect(
+        () => engine.start(),
+        throwsA(isA<BoatPermissionException>().having(
+          (e) => e.code,
+          'code',
+          'PERMISSION_DENIED',
+        )),
+      );
+    });
+
+    test('start succeeds when permission granted', () async {
+      final mock = MockBoatPlatform();
+      final engine = BoatEngine(platform: mock);
+      await engine.start();
+      expect(engine.state, BoatState.running);
+    });
+  });
+}
+
+class _DeniedMockPlatform extends MockBoatPlatform {
+  @override
+  Future<PermissionStatus> checkPermission(PermissionType type) async =>
+      PermissionStatus.denied;
 }

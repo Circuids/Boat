@@ -107,4 +107,45 @@ void main() {
   test('play throws UnimplementedError (Phase 4 stub)', () {
     expect(() => platform.play(Uint8List(0)), throwsUnimplementedError);
   });
+
+  group('permissions', () {
+    test('checkPermission sends type and parses status', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        MethodChannelBoat.methodsChannel,
+        (MethodCall call) async {
+          log.add(call);
+          if (call.method == 'checkPermission') return 'granted';
+          return null;
+        },
+      );
+
+      final status = await platform.checkPermission(PermissionType.microphone);
+      expect(status, PermissionStatus.granted);
+      expect(log.single.method, 'checkPermission');
+      expect((log.single.arguments as Map)['type'], 'microphone');
+    });
+
+    test('requestPermission sends type and parses status', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        MethodChannelBoat.methodsChannel,
+        (MethodCall call) async {
+          log.add(call);
+          if (call.method == 'requestPermission') return 'permanentlyDenied';
+          return null;
+        },
+      );
+
+      final status =
+          await platform.requestPermission(PermissionType.bluetoothConnect);
+      expect(status, PermissionStatus.permanentlyDenied);
+      expect((log.single.arguments as Map)['type'], 'bluetoothConnect');
+    });
+
+    test('openAppSettings invokes native', () async {
+      await platform.openAppSettings();
+      expect(log.single.method, 'openAppSettings');
+    });
+  });
 }
