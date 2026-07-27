@@ -56,6 +56,11 @@ class _EngineHarnessState extends State<EngineHarness> {
     if (_log.length > 100) _log.removeLast();
   }
 
+  Future<void> _requestPermission() async {
+    final status = await BoatPermission.request(PermissionType.microphone);
+    _addLog('PERMISSION: $status');
+  }
+
   Future<void> _start() async {
     try {
       _captureSub = _engine.captureFrames.listen((frame) {
@@ -125,6 +130,7 @@ class _EngineHarnessState extends State<EngineHarness> {
               spacing: 8,
               runSpacing: 8,
               children: [
+                FilledButton(onPressed: _requestPermission, child: const Text('Request Mic')),
                 FilledButton(onPressed: _start, child: const Text('Start')),
                 FilledButton.tonal(onPressed: _stop, child: const Text('Stop')),
                 FilledButton.tonal(onPressed: _playTone, child: const Text('Play Tone')),
