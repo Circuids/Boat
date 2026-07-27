@@ -1,17 +1,21 @@
 package com.circuids.boat
 
+import android.app.Activity
 import android.content.Context
 import com.circuids.boat.audio.*
+import com.circuids.boat.permission.PermissionManager
 import com.circuids.boat.pipeline.*
 import com.circuids.boat.pipeline.stages.MetadataStage
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.embedding.engine.plugins.activity.ActivityAware
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 
-class BoatPlugin : FlutterPlugin, MethodCallHandler {
+class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
     private lateinit var methodsChannel: MethodChannel
     private lateinit var eventsChannel: EventChannel
@@ -30,6 +34,7 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler {
 
     private var currentState = "idle"
     private lateinit var appContext: Context
+    private var permissionManager: PermissionManager? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         appContext = binding.applicationContext
@@ -57,11 +62,38 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler {
                 captureSink = null
             }
         })
+
+        permissionManager = PermissionManager(appContext)
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         teardown()
         methodsChannel.setMethodCallHandler(null)
+        permissionManager = null
+    }
+
+    // ── ActivityAware ──
+
+    override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+        permissionManager?.setActivity(binding.activity)
+        binding.addRequestPermissionsResultListener(
+            permissionManager ?: return
+        )
+    }
+
+    override fun onDetachedFromActivityForConfigChanges() {
+        permissionManager?.setActivity(null)
+    }
+
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+        permissionManager?.setActivity(binding.activity)
+        binding.addRequestPermissionsResultListener(
+            permissionManager ?: return
+        )
+    }
+
+    override fun onDetachedFromActivity() {
+        permissionManager?.setActivity(null)
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -75,6 +107,18 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler {
             "flushPlayback" -> handleFlushPlayback(result)
             "setRoute" -> handleSetRoute(call, result)
             "getDiagnostics" -> handleGetDiagnostics(result)
+            "checkPermission" -> {
+                val type = call.argument<String>("type") ?: "microphone"
+                result.success(permissionManager?.check(type) ?: "denied")
+            }
+            "requestPermission" -> {
+                val type = call.argument<String>("type") ?: "microphone"
+                permissionManager?.request(type, result) ?: result.success("denied")
+            }
+            "openAppSettings" -> {
+                permissionManager?.openSettings()
+                result.success(null)
+            }
             else -> result.notImplemented()
         }
     }
