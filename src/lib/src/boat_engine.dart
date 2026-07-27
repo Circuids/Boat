@@ -6,6 +6,7 @@ import 'boat_engine_state_machine.dart';
 import 'common/common.dart';
 import 'diagnostics/diagnostics.dart';
 import 'events/events.dart';
+import 'exceptions/exceptions.dart';
 import 'models/models.dart';
 
 /// Public entry point for the Boat audio engine.
@@ -31,6 +32,14 @@ class BoatEngine {
   Stream<BoatEvent> get events => _eventController.stream;
 
   Future<void> start([BoatConfig? config]) async {
+    final status = await _platform.checkPermission(PermissionType.microphone);
+    if (status != PermissionStatus.granted) {
+      throw BoatPermissionException(
+        'Microphone permission not granted. '
+        'Call BoatPermission.request() before start().',
+        code: 'PERMISSION_DENIED',
+      );
+    }
     _sm.transition(BoatState.starting);
     try {
       await _platform.start(config ?? const BoatConfig());

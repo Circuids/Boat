@@ -126,6 +126,28 @@ class MethodChannelBoat extends BoatPlatform {
     );
   }
 
+  @override
+  Future<PermissionStatus> checkPermission(PermissionType type) async {
+    final result = await methodsChannel.invokeMethod<String>(
+      'checkPermission',
+      {'type': type.toChannelString()},
+    );
+    return PermissionStatus.fromString(result ?? 'denied');
+  }
+
+  @override
+  Future<PermissionStatus> requestPermission(PermissionType type) async {
+    final result = await methodsChannel.invokeMethod<String>(
+      'requestPermission',
+      {'type': type.toChannelString()},
+    );
+    return PermissionStatus.fromString(result ?? 'denied');
+  }
+
+  @override
+  Future<void> openAppSettings() =>
+      methodsChannel.invokeMethod<void>('openAppSettings');
+
   // ── Private helpers ──
 
   void _listenEvents() {

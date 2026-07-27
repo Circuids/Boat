@@ -56,4 +56,10 @@ abstract class BoatPlatform extends PlatformInterface {
   // ── Diagnostics ──
 
   Future<BoatDiagnostics> getDiagnostics();
+
+  // ── Permissions ──
+
+  Future<PermissionStatus> checkPermission(PermissionType type);
+  Future<PermissionStatus> requestPermission(PermissionType type);
+  Future<void> openAppSettings();
 }

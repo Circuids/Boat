@@ -6,3 +6,4 @@ export 'src/diagnostics/diagnostics.dart';
 export 'src/events/events.dart';
 export 'src/exceptions/exceptions.dart';
 export 'src/models/models.dart';
+export 'src/permissions/permissions.dart';
