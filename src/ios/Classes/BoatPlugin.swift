@@ -14,6 +14,7 @@ public class BoatPlugin: NSObject, FlutterPlugin {
     private var pipeline: PipelineRunner?
     private var publisher: FramePublisher?
 
+    private let permissionManager = PermissionManager()
     private var currentState = "idle"
 
     public static func register(with registrar: FlutterPluginRegistrar) {
@@ -63,6 +64,17 @@ public class BoatPlugin: NSObject, FlutterPlugin {
             result(nil) // iOS handles routing automatically in voiceChat mode
         case "getDiagnostics":
             handleGetDiagnostics(result)
+        case "checkPermission":
+            let args = call.arguments as? [String: Any] ?? [:]
+            let type = args["type"] as? String ?? "microphone"
+            result(permissionManager.check(type))
+        case "requestPermission":
+            let args = call.arguments as? [String: Any] ?? [:]
+            let type = args["type"] as? String ?? "microphone"
+            permissionManager.request(type, result: result)
+        case "openAppSettings":
+            permissionManager.openSettings()
+            result(nil)
         default:
             result(FlutterMethodNotImplemented)
         }
