@@ -1,6 +1,6 @@
 name: boat
 description: "Production-grade realtime voice and audio engine for Flutter with OS-level AEC, AGC, and noise suppression. Optimized for speaker mode where acoustic echo cancellation is critically needed."
-version: 1.0.0
+version: 1.0.0-preview
 homepage: https://github.com/circuids/boat
 repository: https://github.com/circuids/boat
 issue_tracker: https://github.com/circuids/boat/issues

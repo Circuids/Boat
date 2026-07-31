@@ -1,3 +1,5 @@
 src/boat.code-workspace
 
 references/*
+
+.idea/*

@@ -1,4 +1,13 @@
-## 1.0.0 (unreleased)
+## 1.0.0-preview
+
+### Changed
+
+- **Android routing (behavioral fix):** `speakerMode: true` no longer forces the loudspeaker when earbuds/headphones are connected. External devices (Bluetooth, wired, USB) now always take priority; `speakerMode` and `preferredRoute` only affect the fallback when no external device is connected. Connecting or disconnecting a device after engine start now re-applies routing automatically via `RoutePolicy`. iOS behavior is unchanged (OS-managed routing was already correct).
+
+### Fixed
+
+- **Android initial-start routing:** the engine now force-applies routing to the OS at start. Previously the detected route was only stored in a field, so the OS default could win — `speakerMode: true` could produce earpiece audio (the `MODE_IN_COMMUNICATION` default) and legacy Bluetooth connected at start never established SCO.
+- **Android route actuator hardening:** `setCommunicationDevice()` (API 31+) return value is now checked; on failure the route falls back to the legacy path instead of silently no-oping. Legacy Bluetooth SCO (API 26-30) is guarded by a 3-second timeout that falls back to speaker if SCO fails to establish. Consumer-initiated `setRoute()` now persists across device changes until an external device connects (previously the next device change silently overrode the consumer's choice).
 
 ### Initial Release
 
