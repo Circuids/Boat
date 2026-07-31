@@ -21,7 +21,9 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private lateinit var eventsChannel: EventChannel
     private lateinit var captureChannel: EventChannel
 
+    @Volatile
     private var eventsSink: EventChannel.EventSink? = null
+    @Volatile
     private var captureSink: EventChannel.EventSink? = null
 
     private var sessionManager: AudioSessionManager? = null
@@ -33,6 +35,7 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private var publisher: FramePublisher? = null
 
     private var currentState = "idle"
+    private var startTimeMs = 0L
     private lateinit var appContext: Context
     private var permissionManager: PermissionManager? = null
 
@@ -105,6 +108,7 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             "dispose" -> handleDispose(result)
             "reconfigure" -> handleReconfigure(call, result)
             "flushPlayback" -> handleFlushPlayback(result)
+            "play" -> handlePlay(call, result)
             "setRoute" -> handleSetRoute(call, result)
             "getDiagnostics" -> handleGetDiagnostics(result)
             "checkPermission" -> {
@@ -125,16 +129,30 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
     private fun handleStart(call: MethodCall, result: Result) {
         try {
+            // Double-start guard: teardown any existing engine before
+            // re-creating to prevent resource leaks.
+            if (currentState == "running" || currentState == "paused" || currentState == "starting") {
+                teardown()
+            }
+
             val args = call.arguments as? Map<*, *> ?: emptyMap<String, Any>()
             val sampleRate = (args["sampleRate"] as? Number)?.toInt() ?: 16000
             val bufferMs = (args["bufferDurationMs"] as? Number)?.toInt() ?: 20
             val enableAec = args["aec"] as? Boolean ?: true
             val enableAgc = args["agc"] as? Boolean ?: true
             val enableNs = args["noiseSuppression"] as? Boolean ?: true
+            val speakerMode = args["speakerMode"] as? Boolean ?: true
+            val preferredRouteName = args["preferredRoute"] as? String ?: "speaker"
 
             emitState("starting")
 
             val session = AudioSessionManager(appContext)
+            session.onFocusLost = {
+                publisher?.emitWarning("AUDIO_FOCUS_LOST", "Audio focus lost — pausing capture")
+                pipeline?.stop()
+                playbackEngine?.stop()
+                emitState("paused")
+            }
             session.activate()
             sessionManager = session
 
@@ -146,19 +164,27 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             effects.attach(sessionId, enableAec, enableAgc, enableNs)
             effectsManager = effects
 
-            val playback = AudioPlaybackEngine(sampleRate, sessionId)
-            playback.create()
-            playback.start()
-            playbackEngine = playback
+            val pub = FramePublisher(
+                captureSink = { captureSink },
+                eventSink = { eventsSink },
+            )
+            publisher = pub
 
+            // Route must be applied BEFORE creating AudioTrack — some devices
+            // bind the track to the active communication device at creation time.
             val route = AudioRouteManager(appContext, session.audioManagerRef) { newRoute ->
                 publisher?.emitRouteChanged(currentRouteName(), newRoute.channelName)
             }
             route.start()
+            val preferredRoute = BoatAudioRoute.fromChannelName(preferredRouteName)
+            route.setPolicy(RoutePolicy(speakerMode, preferredRoute))
+            route.applyPolicy(force = true)
             routeManager = route
 
-            val pub = FramePublisher { captureSink }
-            publisher = pub
+            val playback = AudioPlaybackEngine(sampleRate, sessionId)
+            playback.create()
+            playback.start()
+            playbackEngine = playback
 
             val config = PipelineConfig.fromMap(args.mapKeys { it.key.toString() })
             val metadataStage = MetadataStage { route.currentRoute.channelName }
@@ -168,10 +194,15 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             pipe.start()
             pipeline = pipe
 
+            startTimeMs = System.currentTimeMillis()
             emitState("running")
             result.success(null)
         } catch (e: Exception) {
+            // Partial-failure cleanup: tear down any resources that were
+            // allocated before the exception so we don't leak.
+            teardown()
             emitState("error")
+            publisher?.emitError("START_FAILED", e.message ?: "Unknown start failure")
             result.error("START_FAILED", e.message, null)
         }
     }
@@ -213,6 +244,16 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         result.success(null)
     }
 
+    private fun handlePlay(call: MethodCall, result: Result) {
+        val pcm = call.argument<ByteArray>("pcm")
+        if (pcm == null) {
+            result.error("INVALID_ARGUMENT", "pcm bytes required", null)
+            return
+        }
+        playbackEngine?.write(pcm)
+        result.success(null)
+    }
+
     private fun handleSetRoute(call: MethodCall, result: Result) {
         val routeName = call.argument<String>("route") ?: "speaker"
         val route = BoatAudioRoute.fromChannelName(routeName)
@@ -225,6 +266,7 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         val effectMap = effects.mapValues { (_, state) ->
             mapOf("supported" to state.supported, "available" to state.available, "active" to state.active)
         }
+        val uptimeMs = if (startTimeMs > 0) System.currentTimeMillis() - startTimeMs else 0
         result.success(
             mapOf(
                 "deviceModel" to android.os.Build.MODEL,
@@ -233,9 +275,10 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 "effectStatus" to effectMap,
                 "currentRoute" to currentRouteName(),
                 "availableRoutes" to (routeManager?.getAvailableRoutes()?.map { it.channelName } ?: listOf("speaker")),
-                "captureFrameCount" to 0,
-                "playbackFrameCount" to 0,
-                "uptimeMs" to 0,
+                "captureFrameCount" to (pipeline?.captureFrameCount ?: 0),
+                "playbackFrameCount" to (playbackEngine?.playbackFrameCount ?: 0),
+                "uptimeMs" to uptimeMs,
+                "scoDeviceConnected" to (routeManager?.isScoDeviceConnected() ?: false),
             )
         )
     }
@@ -255,6 +298,7 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         sessionManager?.deactivate()
         sessionManager = null
         publisher = null
+        startTimeMs = 0
     }
 
     private fun emitState(newState: String) {

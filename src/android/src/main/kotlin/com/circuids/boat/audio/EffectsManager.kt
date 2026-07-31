@@ -21,13 +21,36 @@ class EffectsManager {
 
     fun attach(sessionId: Int, enableAec: Boolean, enableAgc: Boolean, enableNs: Boolean) {
         if (enableAec && AcousticEchoCanceler.isAvailable()) {
-            aec = AcousticEchoCanceler.create(sessionId)?.apply { enabled = true }
+            val effect = AcousticEchoCanceler.create(sessionId)
+            if (effect != null) {
+                aec = effect
+                try {
+                    effect.enabled = true
+                } catch (_: RuntimeException) {
+                    // enabled = true can throw on some devices — the
+                    // effect is attached but inactive; report via status.
+                }
+            }
         }
         if (enableAgc && AutomaticGainControl.isAvailable()) {
-            agc = AutomaticGainControl.create(sessionId)?.apply { enabled = true }
+            val effect = AutomaticGainControl.create(sessionId)
+            if (effect != null) {
+                agc = effect
+                try {
+                    effect.enabled = true
+                } catch (_: RuntimeException) {
+                }
+            }
         }
         if (enableNs && NoiseSuppressor.isAvailable()) {
-            ns = NoiseSuppressor.create(sessionId)?.apply { enabled = true }
+            val effect = NoiseSuppressor.create(sessionId)
+            if (effect != null) {
+                ns = effect
+                try {
+                    effect.enabled = true
+                } catch (_: RuntimeException) {
+                }
+            }
         }
     }
 
@@ -50,9 +73,10 @@ class EffectsManager {
     )
 
     fun release() {
-        aec?.release()
-        agc?.release()
-        ns?.release()
+        // Disable before release to cleanly detach from the audio session.
+        aec?.let { it.enabled = false; it.release() }
+        agc?.let { it.enabled = false; it.release() }
+        ns?.let { it.enabled = false; it.release() }
         aec = null
         agc = null
         ns = null

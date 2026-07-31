@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.collection.SparseArrayCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import io.flutter.plugin.common.PluginRegistry
@@ -17,12 +18,20 @@ class PermissionManager(
 ) : PluginRegistry.RequestPermissionsResultListener {
 
     companion object {
-        private const val REQUEST_CODE = 19847
+        private const val REQUEST_CODE_BASE = 19847
     }
 
     private var activity: Activity? = null
-    private var pendingResult: io.flutter.plugin.common.MethodChannel.Result? = null
-    private var pendingPermission: String? = null
+    private var nextRequestCode = REQUEST_CODE_BASE
+
+    private data class PendingRequest(
+        val permission: String,
+        val result: io.flutter.plugin.common.MethodChannel.Result,
+    )
+
+    // Queue of pending permission requests keyed by request code —
+    // concurrent requests each get a unique code and callback.
+    private val pendingRequests = SparseArrayCompat<PendingRequest>()
 
     fun setActivity(activity: Activity?) {
         this.activity = activity
@@ -58,24 +67,21 @@ class PermissionManager(
         permissions: Array<out String>,
         grantResults: IntArray,
     ): Boolean {
-        if (requestCode != REQUEST_CODE) return false
-        val result = pendingResult ?: return false
-        val permission = pendingPermission ?: return false
-        pendingResult = null
-        pendingPermission = null
+        val pending = pendingRequests.get(requestCode) ?: return false
+        pendingRequests.remove(requestCode)
 
         val granted = grantResults.isNotEmpty() &&
             grantResults[0] == PackageManager.PERMISSION_GRANTED
 
         if (granted) {
-            result.success("granted")
+            pending.result.success("granted")
             return true
         }
 
         val act = activity
         val permanentlyDenied = act != null &&
-            !ActivityCompat.shouldShowRequestPermissionRationale(act, permission)
-        result.success(if (permanentlyDenied) "permanentlyDenied" else "denied")
+            !ActivityCompat.shouldShowRequestPermissionRationale(act, pending.permission)
+        pending.result.success(if (permanentlyDenied) "permanentlyDenied" else "denied")
         return true
     }
 
@@ -106,9 +112,9 @@ class PermissionManager(
             return
         }
 
-        pendingResult = result
-        pendingPermission = permission
-        ActivityCompat.requestPermissions(act, arrayOf(permission), REQUEST_CODE)
+        val requestCode = nextRequestCode++
+        pendingRequests.put(requestCode, PendingRequest(permission, result))
+        ActivityCompat.requestPermissions(act, arrayOf(permission), requestCode)
     }
 
     private fun checkBluetooth(): String {

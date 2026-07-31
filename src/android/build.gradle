@@ -44,10 +44,12 @@ android {
     }
 
     defaultConfig {
-        minSdk = 24
+        minSdk = 26
     }
 
     dependencies {
+        implementation("androidx.core:core-ktx:1.13.1")
+        implementation("androidx.collection:collection:1.4.4")
         testImplementation("org.jetbrains.kotlin:kotlin-test")
         testImplementation("org.mockito:mockito-core:5.0.0")
     }

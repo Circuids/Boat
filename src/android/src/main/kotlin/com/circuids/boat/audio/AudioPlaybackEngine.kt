@@ -17,10 +17,16 @@ class AudioPlaybackEngine(
 ) {
     private var audioTrack: AudioTrack? = null
     private var playbackThread: Thread? = null
-    private val queue = LinkedBlockingQueue<ByteArray>(200)
+    // Sized for ~40s of 20ms frames — absorbs burst delivery (e.g. test-app
+    // replay) without dropping, while the blocking write paces actual output.
+    private val queue = LinkedBlockingQueue<ByteArray>(2000)
 
     @Volatile
     var isPlaying = false
+        private set
+
+    @Volatile
+    var playbackFrameCount: Long = 0
         private set
 
     var underrunCount: Int = 0
@@ -60,6 +66,7 @@ class AudioPlaybackEngine(
     }
 
     fun start() {
+        if (isPlaying) return
         val track = audioTrack ?: return
         track.play()
         isPlaying = true
@@ -69,6 +76,7 @@ class AudioPlaybackEngine(
             while (isPlaying) {
                 val data = queue.poll(50, java.util.concurrent.TimeUnit.MILLISECONDS) ?: continue
                 track.write(data, 0, data.size)
+                playbackFrameCount++
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     underrunCount = track.underrunCount
                 }
@@ -88,10 +96,18 @@ class AudioPlaybackEngine(
     }
 
     fun stop() {
+        // Signal the playback thread to exit, then wait for it to drain
+        // the queue before stopping the track — this prevents a race
+        // where release() is called while a blocking write() is in
+        // progress on the playback thread.
         isPlaying = false
         playbackThread?.join(500)
         playbackThread = null
-        audioTrack?.stop()
+        try {
+            audioTrack?.stop()
+        } catch (_: IllegalStateException) {
+            // stop() throws if already stopped — safe during teardown.
+        }
     }
 
     fun release() {

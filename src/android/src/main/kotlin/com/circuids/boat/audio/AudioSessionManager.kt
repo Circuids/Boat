@@ -4,7 +4,6 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
-import android.os.Build
 
 /**
  * Manages MODE_IN_COMMUNICATION and audio focus lifecycle.
@@ -15,12 +14,22 @@ class AudioSessionManager(context: Context) {
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var previousMode: Int = AudioManager.MODE_NORMAL
     private var focusRequest: AudioFocusRequest? = null
-    private var hasFocus = false
+
+    @Volatile
+    var hasFocus = false
+        private set
+
+    var onFocusLost: (() -> Unit)? = null
 
     val audioManagerRef: AudioManager get() = audioManager
 
     fun activate() {
-        previousMode = audioManager.mode
+        // Guard against double-call: only capture the original mode the
+        // first time, so a second activate() doesn't overwrite it with
+        // MODE_IN_COMMUNICATION (which would break deactivate()).
+        if (audioManager.mode != AudioManager.MODE_IN_COMMUNICATION) {
+            previousMode = audioManager.mode
+        }
         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
         requestFocus()
     }
@@ -41,7 +50,10 @@ class AudioSessionManager(context: Context) {
             .setOnAudioFocusChangeListener { focusChange ->
                 when (focusChange) {
                     AudioManager.AUDIOFOCUS_LOSS,
-                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> hasFocus = false
+                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                        hasFocus = false
+                        onFocusLost?.invoke()
+                    }
                     AudioManager.AUDIOFOCUS_GAIN -> hasFocus = true
                 }
             }

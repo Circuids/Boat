@@ -12,9 +12,9 @@ data class PipelineConfig(
     companion object {
         fun fromMap(map: Map<String, Any?>): PipelineConfig = PipelineConfig(
             frameDurationMs = (map["bufferDurationMs"] as? Number)?.toInt() ?: 20,
-            deadlineFraction = 0.80,
-            vadEnabled = false,
-            diagnosticsEnabled = false,
+            deadlineFraction = (map["deadlineFraction"] as? Number)?.toDouble() ?: 0.80,
+            vadEnabled = map["vadEnabled"] as? Boolean ?: false,
+            diagnosticsEnabled = map["diagnosticsEnabled"] as? Boolean ?: false,
         )
     }
 }

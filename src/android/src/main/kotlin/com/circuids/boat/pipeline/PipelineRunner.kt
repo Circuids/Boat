@@ -21,14 +21,23 @@ class PipelineRunner(
     private val deadlineNanos = (framePeriodNanos * config.deadlineFraction).toLong()
     private var consecutiveFailures = 0
 
+    // Per-stage disabled flags — once a stage exceeds MAX_CONSECUTIVE_FAILURES
+    // it is skipped for subsequent frames (not just warned about).
+    private val stageDisabled = BooleanArray(stages.size)
+    private val stageFailures = IntArray(stages.size)
+
     @Volatile
     private var running = false
     private var captureThread: Thread? = null
 
+    @Volatile
+    var captureFrameCount: Long = 0
+        private set
+
     // Single pre-allocated frame, reused every iteration. Zero allocation per frame.
     private val frame = MutableAudioFrame(ByteArray(captureEngine.frameSizeBytes)).apply {
-        this.sampleRate = this@CapturePipeline.sampleRate
-        this.channelCount = this@CapturePipeline.channelCount
+        this.sampleRate = this@PipelineRunner.sampleRate
+        this.channelCount = this@PipelineRunner.channelCount
     }
 
     companion object {
@@ -40,6 +49,7 @@ class PipelineRunner(
     }
 
     fun start() {
+        if (running) return
         stages.forEach { it.start() }
         running = true
         captureEngine.startRecording()
@@ -53,37 +63,64 @@ class PipelineRunner(
     /**
      * The capture loop: reset → read → stages → publish.
      * Runs on URGENT_AUDIO thread. No locks, no allocations, no thread hops.
+     *
+     * Wrapped in try/catch so an uncaught exception on the capture thread
+     * emits an error event instead of dying silently.
      */
     private fun captureLoop() {
-        while (running) {
-            frame.reset()
-            val bytesRead = captureEngine.read(frame.pcm, 0, frame.pcm.size)
-            if (bytesRead <= 0) continue
-            frame.validBytes = bytesRead
+        try {
+            while (running) {
+                frame.reset()
+                val bytesRead = captureEngine.read(frame.pcm, 0, frame.pcm.size)
+                if (bytesRead <= 0) {
+                    // Negative return (e.g. ERROR_DEAD_OBJECT) is fatal —
+                    // break the loop and emit an error instead of spinning.
+                    if (bytesRead < 0) {
+                        publisher.emitError(
+                            "CAPTURE_READ_FAILED",
+                            "AudioRecord.read returned $bytesRead — capture device may be dead",
+                        )
+                        break
+                    }
+                    continue
+                }
+                frame.validBytes = bytesRead
 
-            val startNanos = System.nanoTime()
-            for (stage in stages) {
-                try {
-                    stage.process(frame)
-                    consecutiveFailures = 0
-                } catch (_: Exception) {
-                    consecutiveFailures++
-                    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                        publisher.emitWarning("STAGE_DISABLED", "Stage disabled after $MAX_CONSECUTIVE_FAILURES failures")
+                val startNanos = System.nanoTime()
+                for ((index, stage) in stages.withIndex()) {
+                    if (stageDisabled[index]) continue
+                    try {
+                        stage.process(frame)
+                        stageFailures[index] = 0
+                    } catch (_: Exception) {
+                        stageFailures[index]++
+                        if (stageFailures[index] >= MAX_CONSECUTIVE_FAILURES && !stageDisabled[index]) {
+                            stageDisabled[index] = true
+                            publisher.emitWarning(
+                                "STAGE_DISABLED",
+                                "Stage ${stage::class.simpleName} disabled after $MAX_CONSECUTIVE_FAILURES consecutive failures",
+                            )
+                        }
                     }
                 }
-            }
 
-            frame.processingTimeNanos = System.nanoTime() - startNanos
-            if (frame.processingTimeNanos > deadlineNanos) {
-                publisher.emitWarning("DEADLINE_EXCEEDED", "Frame ${frame.sequenceNumber} exceeded deadline")
-            }
+                frame.processingTimeNanos = System.nanoTime() - startNanos
+                if (frame.processingTimeNanos > deadlineNanos) {
+                    publisher.emitWarning("DEADLINE_EXCEEDED", "Frame ${frame.sequenceNumber} exceeded deadline")
+                }
 
-            publisher.publish(frame)
+                publisher.publish(frame)
+                captureFrameCount++
+            }
+        } catch (e: Exception) {
+            publisher.emitError("CAPTURE_THREAD_FATAL", "Capture thread terminated: ${e.message}")
+        } finally {
+            running = false
         }
     }
 
     fun stop() {
+        if (!running) return
         running = false
         captureThread?.join(500)
         captureThread = null

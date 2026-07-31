@@ -27,7 +27,6 @@ internal class PipelineRunnerTest {
         val log = mutableListOf<String>()
         val stages = listOf(RecordingStage("a", log), RecordingStage("b", log), RecordingStage("c", log))
         val config = PipelineConfig()
-        val publisher = FramePublisher { null }
         val frame = MutableAudioFrame(ByteArray(640))
 
         stages.forEach { it.initialize(config) }

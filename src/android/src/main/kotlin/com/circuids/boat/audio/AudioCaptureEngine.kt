@@ -13,6 +13,7 @@ class AudioCaptureEngine(
     private val sampleRate: Int = 16000,
     private val bufferDurationMs: Int = 20,
 ) {
+    @Volatile
     private var audioRecord: AudioRecord? = null
 
     val audioSessionId: Int
@@ -25,6 +26,12 @@ class AudioCaptureEngine(
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
         val encoding = AudioFormat.ENCODING_PCM_16BIT
         val minBuffer = AudioRecord.getMinBufferSize(sampleRate, channelConfig, encoding)
+        // getMinBufferSize returns ERROR_BAD_VALUE (-2) or ERROR (-1) on
+        // unsupported configurations — fail fast instead of constructing
+        // a broken AudioRecord.
+        if (minBuffer <= 0) {
+            throw IllegalStateException("AudioRecord.getMinBufferSize returned $minBuffer for ${sampleRate}Hz")
+        }
         val targetBytes = sampleRate * bufferDurationMs / 1000 * 2
         val bufferSize = max(minBuffer, targetBytes) * 2
 
@@ -40,6 +47,11 @@ class AudioCaptureEngine(
             .setBufferSizeInBytes(bufferSize)
             .build()
 
+        if (record.state != AudioRecord.STATE_INITIALIZED) {
+            record.release()
+            throw IllegalStateException("AudioRecord failed to initialize (state=${record.state})")
+        }
+
         audioRecord = record
         return record.audioSessionId
     }
@@ -54,7 +66,11 @@ class AudioCaptureEngine(
     }
 
     fun stop() {
-        audioRecord?.stop()
+        try {
+            audioRecord?.stop()
+        } catch (_: IllegalStateException) {
+            // stop() throws if not recording — safe to ignore during teardown.
+        }
     }
 
     fun release() {
