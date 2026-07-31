@@ -32,7 +32,11 @@ class AudioFrame {
   int get byteLength => pcm.length;
 
   /// Duration of audio in this frame, computed from byte length and format.
+  ///
+  /// Returns [Duration.zero] when [sampleRate] or [channelCount] is zero
+  /// to avoid division-by-zero.
   Duration get duration {
+    if (sampleRate == 0 || channelCount == 0) return Duration.zero;
     const bytesPerSample = 2; // 16-bit
     final totalSamples = pcm.length ~/ (bytesPerSample * channelCount);
     final microseconds = (totalSamples * 1000000) ~/ sampleRate;

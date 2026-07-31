@@ -33,7 +33,7 @@ class BoatConfig {
   /// Preferred audio output route. Default: [AudioRoute.speaker].
   final AudioRoute preferredRoute;
 
-  const BoatConfig({
+  BoatConfig({
     this.sampleRate = 16000,
     this.channelCount = 1,
     this.bitsPerSample = 16,
@@ -53,7 +53,41 @@ class BoatConfig {
         assert(
           bufferDurationMs >= 5 && bufferDurationMs <= 100,
           'bufferDurationMs must be between 5 and 100',
-        );
+        ) {
+    // Runtime validation — asserts are stripped in release mode, so the
+    // constructor body must throw to catch invalid configs in production.
+    if (sampleRate <= 0) {
+      throw ArgumentError.value(sampleRate, 'sampleRate', 'must be positive');
+    }
+    if (channelCount <= 0) {
+      throw ArgumentError.value(
+        channelCount,
+        'channelCount',
+        'must be positive',
+      );
+    }
+    if (bitsPerSample != 16) {
+      throw ArgumentError.value(
+        bitsPerSample,
+        'bitsPerSample',
+        'only 16-bit PCM is supported in v1.0',
+      );
+    }
+    if (bufferDurationMs <= 0) {
+      throw ArgumentError.value(
+        bufferDurationMs,
+        'bufferDurationMs',
+        'must be positive',
+      );
+    }
+    if (bufferDurationMs < 5 || bufferDurationMs > 100) {
+      throw ArgumentError.value(
+        bufferDurationMs,
+        'bufferDurationMs',
+        'must be between 5 and 100',
+      );
+    }
+  }
 
   /// Creates a [BoatConfigBuilder] for fluent configuration.
   static BoatConfigBuilder builder() => BoatConfigBuilder();

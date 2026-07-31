@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:boat/boat_method_channel.dart';
 import 'package:boat/src/common/common.dart';
+import 'package:boat/src/events/events.dart';
 import 'package:boat/src/models/models.dart';
 
 void main() {
@@ -48,7 +49,7 @@ void main() {
   });
 
   test('start invokes native and transitions to running', () async {
-    const config = BoatConfig();
+    final config = BoatConfig();
     await platform.start(config);
 
     expect(platform.state, BoatState.running);
@@ -58,7 +59,7 @@ void main() {
   });
 
   test('stop invokes native and transitions to idle', () async {
-    const config = BoatConfig();
+    final config = BoatConfig();
     await platform.start(config);
     await platform.stop();
 
@@ -79,7 +80,7 @@ void main() {
   });
 
   test('reconfigure sends config map', () async {
-    const config = BoatConfig(sampleRate: 48000);
+    final config = BoatConfig(sampleRate: 48000);
     await platform.reconfigure(config);
 
     expect(log.single.method, 'reconfigure');
@@ -104,8 +105,11 @@ void main() {
     expect(diag.currentRoute, AudioRoute.speaker);
   });
 
-  test('play throws UnimplementedError (Phase 4 stub)', () {
-    expect(() => platform.play(Uint8List(0)), throwsUnimplementedError);
+  test('play sends pcm via method channel', () {
+    platform.play(Uint8List.fromList([1, 2, 3, 4]));
+    expect(log.single.method, 'play');
+    expect((log.single.arguments as Map)['pcm'],
+        Uint8List.fromList([1, 2, 3, 4]));
   });
 
   group('permissions', () {
@@ -146,6 +150,137 @@ void main() {
     test('openAppSettings invokes native', () async {
       await platform.openAppSettings();
       expect(log.single.method, 'openAppSettings');
+    });
+  });
+
+  // ── Production hardening tests ──
+
+  group('start failure cleanup', () {
+    test('start cleans up subscriptions on failure', () async {
+      // Make the native start call throw.
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        MethodChannelBoat.methodsChannel,
+        (MethodCall call) async {
+          log.add(call);
+          if (call.method == 'start') {
+            throw PlatformException(code: 'START_FAILED');
+          }
+          return null;
+        },
+      );
+
+      final config = BoatConfig();
+      await expectLater(platform.start(config), throwsA(isA<PlatformException>()));
+      expect(platform.state, BoatState.error);
+    });
+  });
+
+  group('stop failure handling', () {
+    test('stop transitions to error on native failure', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        MethodChannelBoat.methodsChannel,
+        (MethodCall call) async {
+          log.add(call);
+          if (call.method == 'stop') {
+            throw PlatformException(code: 'STOP_FAILED');
+          }
+          return null;
+        },
+      );
+
+      await expectLater(platform.stop(), throwsA(isA<PlatformException>()));
+      expect(platform.state, BoatState.error);
+    });
+  });
+
+  group('dispose always closes controllers', () {
+    test('dispose closes controllers even if native throws', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        MethodChannelBoat.methodsChannel,
+        (MethodCall call) async {
+          if (call.method == 'dispose') {
+            throw PlatformException(code: 'DISPOSE_FAILED');
+          }
+          return null;
+        },
+      );
+
+      await expectLater(platform.dispose(), throwsA(isA<PlatformException>()));
+      // State should NOT be disposed since native failed.
+      expect(platform.state, isNot(BoatState.disposed));
+    });
+  });
+
+  group('play error surfacing', () {
+    test('play surfaces error as BoatWarning via events stream', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        MethodChannelBoat.methodsChannel,
+        (MethodCall call) async {
+          log.add(call);
+          if (call.method == 'play') {
+            throw PlatformException(code: 'PLAYBACK_ERROR');
+          }
+          return null;
+        },
+      );
+
+      final receivedEvents = <BoatEvent>[];
+      platform.events.listen(receivedEvents.add);
+
+      platform.play(Uint8List.fromList([1, 2, 3, 4]));
+
+      // Give the catchError callback time to fire.
+      await Future<void>.delayed(Duration.zero);
+
+      expect(log.any((c) => c.method == 'play'), isTrue);
+      expect(receivedEvents, isNotEmpty);
+      expect(receivedEvents.any((e) => e is BoatWarning), isTrue);
+    });
+  });
+
+  group('setRoute error handling', () {
+    test('setRoute does not update currentRoute on native failure', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        MethodChannelBoat.methodsChannel,
+        (MethodCall call) async {
+          if (call.method == 'setRoute') {
+            throw PlatformException(code: 'ROUTE_FAILED');
+          }
+          return null;
+        },
+      );
+
+      expect(platform.currentRoute, AudioRoute.speaker);
+      await expectLater(
+        platform.setRoute(AudioRoute.bluetooth),
+        throwsA(isA<PlatformException>()),
+      );
+      // Route should NOT have changed.
+      expect(platform.currentRoute, AudioRoute.speaker);
+    });
+  });
+
+  group('getDiagnostics error handling', () {
+    test('returns safe defaults on native failure', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        MethodChannelBoat.methodsChannel,
+        (MethodCall call) async {
+          if (call.method == 'getDiagnostics') {
+            throw PlatformException(code: 'DIAG_FAILED');
+          }
+          return null;
+        },
+      );
+
+      final diag = await platform.getDiagnostics();
+      expect(diag.deviceModel, '');
+      expect(diag.audioSessionId, -1);
     });
   });
 }
