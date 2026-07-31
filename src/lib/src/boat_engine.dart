@@ -32,7 +32,7 @@ class BoatEngine {
   Completer<void>? _lifecycleLock;
 
   BoatEngine({BoatPlatform? platform})
-      : _platform = platform ?? BoatPlatform.instance {
+    : _platform = platform ?? BoatPlatform.instance {
     _eventSub = _platform.events.listen(
       _handleEvent,
       onError: (Object error) {

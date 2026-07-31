@@ -83,9 +83,7 @@ class BoatDiagnostics {
       availableRoutes: routes,
       captureFrameCount: map['captureFrameCount'] as int? ?? 0,
       playbackFrameCount: map['playbackFrameCount'] as int? ?? 0,
-      uptime: Duration(
-        milliseconds: map['uptimeMs'] as int? ?? 0,
-      ),
+      uptime: Duration(milliseconds: map['uptimeMs'] as int? ?? 0),
       scoDeviceConnected: map['scoDeviceConnected'] as bool? ?? false,
     );
   }

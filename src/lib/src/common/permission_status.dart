@@ -11,13 +11,13 @@ enum PermissionStatus {
   notDetermined;
 
   static PermissionStatus fromString(String value) => switch (value) {
-        'granted' => PermissionStatus.granted,
-        'denied' => PermissionStatus.denied,
-        'permanentlyDenied' => PermissionStatus.permanentlyDenied,
-        'restricted' => PermissionStatus.restricted,
-        'notDetermined' => PermissionStatus.notDetermined,
-        _ => throw ArgumentError('Unknown PermissionStatus: $value'),
-      };
+    'granted' => PermissionStatus.granted,
+    'denied' => PermissionStatus.denied,
+    'permanentlyDenied' => PermissionStatus.permanentlyDenied,
+    'restricted' => PermissionStatus.restricted,
+    'notDetermined' => PermissionStatus.notDetermined,
+    _ => throw ArgumentError('Unknown PermissionStatus: $value'),
+  };
 
   String toChannelString() => name;
 }

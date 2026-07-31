@@ -16,12 +16,12 @@ void main() {
     log.clear();
 
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-      MethodChannelBoat.methodsChannel,
-      (MethodCall call) async {
-        log.add(call);
-        return switch (call.method) {
-          'getDiagnostics' => <String, dynamic>{
+        .setMockMethodCallHandler(MethodChannelBoat.methodsChannel, (
+          MethodCall call,
+        ) async {
+          log.add(call);
+          return switch (call.method) {
+            'getDiagnostics' => <String, dynamic>{
               'deviceModel': 'test',
               'osVersion': '1',
               'audioSessionId': 1,
@@ -32,10 +32,9 @@ void main() {
               'playbackFrameCount': 0,
               'uptimeMs': 0,
             },
-          _ => null,
-        };
-      },
-    );
+            _ => null,
+          };
+        });
   });
 
   tearDown(() {
@@ -108,21 +107,22 @@ void main() {
   test('play sends pcm via method channel', () {
     platform.play(Uint8List.fromList([1, 2, 3, 4]));
     expect(log.single.method, 'play');
-    expect((log.single.arguments as Map)['pcm'],
-        Uint8List.fromList([1, 2, 3, 4]));
+    expect(
+      (log.single.arguments as Map)['pcm'],
+      Uint8List.fromList([1, 2, 3, 4]),
+    );
   });
 
   group('permissions', () {
     test('checkPermission sends type and parses status', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-        MethodChannelBoat.methodsChannel,
-        (MethodCall call) async {
-          log.add(call);
-          if (call.method == 'checkPermission') return 'granted';
-          return null;
-        },
-      );
+          .setMockMethodCallHandler(MethodChannelBoat.methodsChannel, (
+            MethodCall call,
+          ) async {
+            log.add(call);
+            if (call.method == 'checkPermission') return 'granted';
+            return null;
+          });
 
       final status = await platform.checkPermission(PermissionType.microphone);
       expect(status, PermissionStatus.granted);
@@ -132,17 +132,17 @@ void main() {
 
     test('requestPermission sends type and parses status', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-        MethodChannelBoat.methodsChannel,
-        (MethodCall call) async {
-          log.add(call);
-          if (call.method == 'requestPermission') return 'permanentlyDenied';
-          return null;
-        },
-      );
+          .setMockMethodCallHandler(MethodChannelBoat.methodsChannel, (
+            MethodCall call,
+          ) async {
+            log.add(call);
+            if (call.method == 'requestPermission') return 'permanentlyDenied';
+            return null;
+          });
 
-      final status =
-          await platform.requestPermission(PermissionType.bluetoothConnect);
+      final status = await platform.requestPermission(
+        PermissionType.bluetoothConnect,
+      );
       expect(status, PermissionStatus.permanentlyDenied);
       expect((log.single.arguments as Map)['type'], 'bluetoothConnect');
     });
@@ -159,19 +159,21 @@ void main() {
     test('start cleans up subscriptions on failure', () async {
       // Make the native start call throw.
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-        MethodChannelBoat.methodsChannel,
-        (MethodCall call) async {
-          log.add(call);
-          if (call.method == 'start') {
-            throw PlatformException(code: 'START_FAILED');
-          }
-          return null;
-        },
-      );
+          .setMockMethodCallHandler(MethodChannelBoat.methodsChannel, (
+            MethodCall call,
+          ) async {
+            log.add(call);
+            if (call.method == 'start') {
+              throw PlatformException(code: 'START_FAILED');
+            }
+            return null;
+          });
 
       final config = BoatConfig();
-      await expectLater(platform.start(config), throwsA(isA<PlatformException>()));
+      await expectLater(
+        platform.start(config),
+        throwsA(isA<PlatformException>()),
+      );
       expect(platform.state, BoatState.error);
     });
   });
@@ -179,16 +181,15 @@ void main() {
   group('stop failure handling', () {
     test('stop transitions to error on native failure', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-        MethodChannelBoat.methodsChannel,
-        (MethodCall call) async {
-          log.add(call);
-          if (call.method == 'stop') {
-            throw PlatformException(code: 'STOP_FAILED');
-          }
-          return null;
-        },
-      );
+          .setMockMethodCallHandler(MethodChannelBoat.methodsChannel, (
+            MethodCall call,
+          ) async {
+            log.add(call);
+            if (call.method == 'stop') {
+              throw PlatformException(code: 'STOP_FAILED');
+            }
+            return null;
+          });
 
       await expectLater(platform.stop(), throwsA(isA<PlatformException>()));
       expect(platform.state, BoatState.error);
@@ -198,15 +199,14 @@ void main() {
   group('dispose always closes controllers', () {
     test('dispose closes controllers even if native throws', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-        MethodChannelBoat.methodsChannel,
-        (MethodCall call) async {
-          if (call.method == 'dispose') {
-            throw PlatformException(code: 'DISPOSE_FAILED');
-          }
-          return null;
-        },
-      );
+          .setMockMethodCallHandler(MethodChannelBoat.methodsChannel, (
+            MethodCall call,
+          ) async {
+            if (call.method == 'dispose') {
+              throw PlatformException(code: 'DISPOSE_FAILED');
+            }
+            return null;
+          });
 
       await expectLater(platform.dispose(), throwsA(isA<PlatformException>()));
       // State should NOT be disposed since native failed.
@@ -217,16 +217,15 @@ void main() {
   group('play error surfacing', () {
     test('play surfaces error as BoatWarning via events stream', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-        MethodChannelBoat.methodsChannel,
-        (MethodCall call) async {
-          log.add(call);
-          if (call.method == 'play') {
-            throw PlatformException(code: 'PLAYBACK_ERROR');
-          }
-          return null;
-        },
-      );
+          .setMockMethodCallHandler(MethodChannelBoat.methodsChannel, (
+            MethodCall call,
+          ) async {
+            log.add(call);
+            if (call.method == 'play') {
+              throw PlatformException(code: 'PLAYBACK_ERROR');
+            }
+            return null;
+          });
 
       final receivedEvents = <BoatEvent>[];
       platform.events.listen(receivedEvents.add);
@@ -245,15 +244,14 @@ void main() {
   group('setRoute error handling', () {
     test('setRoute does not update currentRoute on native failure', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-        MethodChannelBoat.methodsChannel,
-        (MethodCall call) async {
-          if (call.method == 'setRoute') {
-            throw PlatformException(code: 'ROUTE_FAILED');
-          }
-          return null;
-        },
-      );
+          .setMockMethodCallHandler(MethodChannelBoat.methodsChannel, (
+            MethodCall call,
+          ) async {
+            if (call.method == 'setRoute') {
+              throw PlatformException(code: 'ROUTE_FAILED');
+            }
+            return null;
+          });
 
       expect(platform.currentRoute, AudioRoute.speaker);
       await expectLater(
@@ -268,15 +266,14 @@ void main() {
   group('getDiagnostics error handling', () {
     test('returns safe defaults on native failure', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-        MethodChannelBoat.methodsChannel,
-        (MethodCall call) async {
-          if (call.method == 'getDiagnostics') {
-            throw PlatformException(code: 'DIAG_FAILED');
-          }
-          return null;
-        },
-      );
+          .setMockMethodCallHandler(MethodChannelBoat.methodsChannel, (
+            MethodCall call,
+          ) async {
+            if (call.method == 'getDiagnostics') {
+              throw PlatformException(code: 'DIAG_FAILED');
+            }
+            return null;
+          });
 
       final diag = await platform.getDiagnostics();
       expect(diag.deviceModel, '');

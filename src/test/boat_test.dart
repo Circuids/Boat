@@ -40,16 +40,16 @@ class MockBoatPlatform with MockPlatformInterfaceMixin implements BoatPlatform {
   Future<void> setRoute(AudioRoute route) async {}
   @override
   Future<BoatDiagnostics> getDiagnostics() async => const BoatDiagnostics(
-        deviceModel: 'mock',
-        osVersion: '0',
-        audioSessionId: -1,
-        effectStatus: {},
-        currentRoute: AudioRoute.speaker,
-        availableRoutes: [],
-        captureFrameCount: 0,
-        playbackFrameCount: 0,
-        uptime: Duration.zero,
-      );
+    deviceModel: 'mock',
+    osVersion: '0',
+    audioSessionId: -1,
+    effectStatus: {},
+    currentRoute: AudioRoute.speaker,
+    availableRoutes: [],
+    captureFrameCount: 0,
+    playbackFrameCount: 0,
+    uptime: Duration.zero,
+  );
 
   @override
   Future<PermissionStatus> checkPermission(PermissionType type) async =>
@@ -134,7 +134,10 @@ void main() {
     });
 
     test('speakerMode false + earpiece fallback serializes correctly', () {
-      final config = BoatConfig(speakerMode: false, preferredRoute: AudioRoute.earpiece);
+      final config = BoatConfig(
+        speakerMode: false,
+        preferredRoute: AudioRoute.earpiece,
+      );
       final map = config.toMap();
       expect(map['speakerMode'], isFalse);
       expect(map['preferredRoute'], 'earpiece');
@@ -309,11 +312,13 @@ void main() {
       final engine = BoatEngine(platform: mock);
       expect(
         () => engine.start(),
-        throwsA(isA<BoatPermissionException>().having(
-          (e) => e.code,
-          'code',
-          'PERMISSION_DENIED',
-        )),
+        throwsA(
+          isA<BoatPermissionException>().having(
+            (e) => e.code,
+            'code',
+            'PERMISSION_DENIED',
+          ),
+        ),
       );
     });
 
@@ -360,10 +365,7 @@ void main() {
       final mock = _StartFailingMockPlatform();
       final engine = BoatEngine(platform: mock);
       await engine.start();
-      await expectLater(
-        engine.reconfigure(BoatConfig()),
-        throwsException,
-      );
+      await expectLater(engine.reconfigure(BoatConfig()), throwsException);
       expect(engine.state, BoatState.error);
     });
   });
@@ -443,7 +445,10 @@ void main() {
     });
 
     test('valid config does not throw', () {
-      expect(() => BoatConfig(sampleRate: 48000, bufferDurationMs: 40), returnsNormally);
+      expect(
+        () => BoatConfig(sampleRate: 48000, bufferDurationMs: 40),
+        returnsNormally,
+      );
     });
   });
 
@@ -483,7 +488,11 @@ void main() {
       final diag = BoatDiagnostics.fromMap({
         'effectStatus': {
           'aec': {'supported': true, 'available': true, 'active': true},
-          'unknownEffect': {'supported': true, 'available': true, 'active': true},
+          'unknownEffect': {
+            'supported': true,
+            'available': true,
+            'active': true,
+          },
         },
       });
       expect(diag.effectStatus.length, 1);
@@ -492,9 +501,7 @@ void main() {
 
     test('skips non-Map effect values', () {
       final diag = BoatDiagnostics.fromMap({
-        'effectStatus': {
-          'aec': 'not a map',
-        },
+        'effectStatus': {'aec': 'not a map'},
       });
       expect(diag.effectStatus, isEmpty);
     });
@@ -542,10 +549,12 @@ void main() {
       await engine.start();
       expect(engine.state, BoatState.running);
 
-      mock.emitEvent(BoatError(
-        timestamp: DateTime.now(),
-        exception: const BoatNativeException('native crash', code: 'FATAL'),
-      ));
+      mock.emitEvent(
+        BoatError(
+          timestamp: DateTime.now(),
+          exception: const BoatNativeException('native crash', code: 'FATAL'),
+        ),
+      );
 
       // Give the stream listener a microtask to process.
       await Future<void>.delayed(Duration.zero);
@@ -567,7 +576,10 @@ void main() {
 
       // Final state depends on execution order, but no exception should
       // be thrown and the state machine should be consistent.
-      expect(engine.state, anyOf(BoatState.idle, BoatState.error, BoatState.running));
+      expect(
+        engine.state,
+        anyOf(BoatState.idle, BoatState.error, BoatState.running),
+      );
     });
   });
 
@@ -625,6 +637,7 @@ class _StartFailingWithStopMockPlatform extends MockBoatPlatform {
   Future<void> stop() async {
     stopCalled = true;
   }
+
   @override
   Future<void> start(BoatConfig config) async {
     throw Exception('platform start failed');
@@ -650,6 +663,7 @@ class _SlowMockPlatform extends MockBoatPlatform {
   Future<void> start(BoatConfig config) async {
     await Future<void>.delayed(const Duration(milliseconds: 50));
   }
+
   @override
   Future<void> stop() async {
     await Future<void>.delayed(const Duration(milliseconds: 50));

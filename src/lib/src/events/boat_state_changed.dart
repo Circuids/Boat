@@ -13,6 +13,5 @@ class BoatStateChanged extends BoatEvent {
   });
 
   @override
-  String toString() =>
-      'BoatStateChanged($previous → $current at $timestamp)';
+  String toString() => 'BoatStateChanged($previous → $current at $timestamp)';
 }

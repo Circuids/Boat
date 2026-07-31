@@ -9,7 +9,11 @@ class BoatEngineStateMachine {
 
   static const _validTransitions = <BoatState, Set<BoatState>>{
     BoatState.idle: {BoatState.starting, BoatState.disposed},
-    BoatState.starting: {BoatState.running, BoatState.error, BoatState.stopping},
+    BoatState.starting: {
+      BoatState.running,
+      BoatState.error,
+      BoatState.stopping,
+    },
     BoatState.running: {BoatState.paused, BoatState.stopping, BoatState.error},
     BoatState.paused: {BoatState.running, BoatState.stopping, BoatState.error},
     BoatState.stopping: {BoatState.idle, BoatState.error},

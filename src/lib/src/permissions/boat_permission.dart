@@ -18,6 +18,5 @@ class BoatPermission {
       BoatPlatform.instance.requestPermission(type);
 
   /// Opens the app's system settings page.
-  static Future<void> openSettings() =>
-      BoatPlatform.instance.openAppSettings();
+  static Future<void> openSettings() => BoatPlatform.instance.openAppSettings();
 }

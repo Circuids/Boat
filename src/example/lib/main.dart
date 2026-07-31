@@ -52,7 +52,12 @@ class _EngineHarnessState extends State<EngineHarness> {
   }
 
   void _addLog(String msg) {
-    setState(() => _log.insert(0, '${DateTime.now().toIso8601String().substring(11, 23)} $msg'));
+    setState(
+      () => _log.insert(
+        0,
+        '${DateTime.now().toIso8601String().substring(11, 23)} $msg',
+      ),
+    );
     if (_log.length > 100) _log.removeLast();
   }
 
@@ -66,7 +71,9 @@ class _EngineHarnessState extends State<EngineHarness> {
       _captureSub = _engine.captureFrames.listen((frame) {
         _frameCount++;
         if (_frameCount % 50 == 0) {
-          _addLog('Frame #${frame.sequenceNumber} (${frame.duration.inMilliseconds}ms, ${frame.byteLength}B)');
+          _addLog(
+            'Frame #${frame.sequenceNumber} (${frame.duration.inMilliseconds}ms, ${frame.byteLength}B)',
+          );
         }
       });
       await _engine.start();
@@ -130,12 +137,24 @@ class _EngineHarnessState extends State<EngineHarness> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                FilledButton(onPressed: _requestPermission, child: const Text('Request Mic')),
+                FilledButton(
+                  onPressed: _requestPermission,
+                  child: const Text('Request Mic'),
+                ),
                 FilledButton(onPressed: _start, child: const Text('Start')),
                 FilledButton.tonal(onPressed: _stop, child: const Text('Stop')),
-                FilledButton.tonal(onPressed: _playTone, child: const Text('Play Tone')),
-                FilledButton.tonal(onPressed: _showDiagnostics, child: const Text('Diagnostics')),
-                FilledButton.tonal(onPressed: _dispose, child: const Text('Dispose')),
+                FilledButton.tonal(
+                  onPressed: _playTone,
+                  child: const Text('Play Tone'),
+                ),
+                FilledButton.tonal(
+                  onPressed: _showDiagnostics,
+                  child: const Text('Diagnostics'),
+                ),
+                FilledButton.tonal(
+                  onPressed: _dispose,
+                  child: const Text('Dispose'),
+                ),
               ],
             ),
           ),
@@ -146,7 +165,10 @@ class _EngineHarnessState extends State<EngineHarness> {
               itemCount: _log.length,
               itemBuilder: (_, i) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 1),
-                child: Text(_log[i], style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
+                child: Text(
+                  _log[i],
+                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                ),
               ),
             ),
           ),

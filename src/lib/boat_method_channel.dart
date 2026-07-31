@@ -114,18 +114,20 @@ class MethodChannelBoat extends BoatPlatform {
 
   @override
   void play(Uint8List pcm) {
-    methodsChannel
-        .invokeMethod<void>('play', {'pcm': pcm})
-        .catchError((Object error) {
-          // play() is void by API contract — surface failures as warnings
-          // so consumers learn the playback dropped without changing the
-          // signature (which would be a breaking change).
-          _eventsController.add(BoatWarning(
-            timestamp: DateTime.now(),
-            code: 'PLAYBACK_FAILED',
-            message: error.toString(),
-          ));
-        });
+    methodsChannel.invokeMethod<void>('play', {'pcm': pcm}).catchError((
+      Object error,
+    ) {
+      // play() is void by API contract — surface failures as warnings
+      // so consumers learn the playback dropped without changing the
+      // signature (which would be a breaking change).
+      _eventsController.add(
+        BoatWarning(
+          timestamp: DateTime.now(),
+          code: 'PLAYBACK_FAILED',
+          message: error.toString(),
+        ),
+      );
+    });
   }
 
   @override
@@ -135,10 +137,9 @@ class MethodChannelBoat extends BoatPlatform {
   @override
   Future<void> setRoute(AudioRoute route) async {
     try {
-      await methodsChannel.invokeMethod<void>(
-        'setRoute',
-        {'route': route.toChannelString()},
-      );
+      await methodsChannel.invokeMethod<void>('setRoute', {
+        'route': route.toChannelString(),
+      });
       _currentRoute = route;
     } catch (_) {
       // Do not update _currentRoute if native rejected the route.
@@ -152,9 +153,7 @@ class MethodChannelBoat extends BoatPlatform {
       final result = await methodsChannel.invokeMethod<Map<dynamic, dynamic>>(
         'getDiagnostics',
       );
-      return BoatDiagnostics.fromMap(
-        Map<String, dynamic>.from(result ?? {}),
-      );
+      return BoatDiagnostics.fromMap(Map<String, dynamic>.from(result ?? {}));
     } catch (_) {
       // Return a minimal diagnostics snapshot rather than crashing when
       // native is unavailable (e.g. engine disposed mid-query).
@@ -224,10 +223,12 @@ class MethodChannelBoat extends BoatPlatform {
       },
       onError: (Object error) {
         _state = BoatState.error;
-        _eventsController.add(BoatError(
-          timestamp: DateTime.now(),
-          exception: BoatNativeException(error.toString()),
-        ));
+        _eventsController.add(
+          BoatError(
+            timestamp: DateTime.now(),
+            exception: BoatNativeException(error.toString()),
+          ),
+        );
       },
       onDone: () {
         _eventsSub = null;
@@ -242,13 +243,15 @@ class MethodChannelBoat extends BoatPlatform {
         if (frame != null) _captureController.add(frame);
       },
       onError: (Object error) {
-        _eventsController.add(BoatError(
-          timestamp: DateTime.now(),
-          exception: BoatNativeException(
-            'Capture stream error: $error',
-            code: 'CAPTURE_STREAM_ERROR',
+        _eventsController.add(
+          BoatError(
+            timestamp: DateTime.now(),
+            exception: BoatNativeException(
+              'Capture stream error: $error',
+              code: 'CAPTURE_STREAM_ERROR',
+            ),
           ),
-        ));
+        );
       },
       onDone: () {
         _captureSub = null;
@@ -270,39 +273,39 @@ class MethodChannelBoat extends BoatPlatform {
     try {
       return switch (type) {
         'stateChanged' => BoatStateChanged(
-            timestamp: ts,
-            previous: BoatState.values.byName(map['previous'] as String),
-            current: BoatState.values.byName(map['current'] as String),
-          ),
+          timestamp: ts,
+          previous: BoatState.values.byName(map['previous'] as String),
+          current: BoatState.values.byName(map['current'] as String),
+        ),
         'warning' => BoatWarning(
-            timestamp: ts,
-            code: map['code'] as String? ?? 'unknown',
-            message: map['message'] as String? ?? '',
-          ),
+          timestamp: ts,
+          code: map['code'] as String? ?? 'unknown',
+          message: map['message'] as String? ?? '',
+        ),
         'routeChanged' => () {
-            final event = BoatRouteChanged(
-              timestamp: ts,
-              previous: AudioRoute.fromString(map['previous'] as String),
-              current: AudioRoute.fromString(map['current'] as String),
-            );
-            // Side-effect: keep the getter in sync with externally-driven
-            // route changes (headset plug/unplug, Bluetooth connect).
-            _currentRoute = event.current;
-            return event;
-          }(),
+          final event = BoatRouteChanged(
+            timestamp: ts,
+            previous: AudioRoute.fromString(map['previous'] as String),
+            current: AudioRoute.fromString(map['current'] as String),
+          );
+          // Side-effect: keep the getter in sync with externally-driven
+          // route changes (headset plug/unplug, Bluetooth connect).
+          _currentRoute = event.current;
+          return event;
+        }(),
         'effectStatusChanged' => BoatEffectStatusChanged(
-            timestamp: ts,
-            effect: AudioEffectType.values.byName(map['effect'] as String),
-            available: map['available'] as bool? ?? false,
-            active: map['active'] as bool? ?? false,
-          ),
+          timestamp: ts,
+          effect: AudioEffectType.values.byName(map['effect'] as String),
+          available: map['available'] as bool? ?? false,
+          active: map['active'] as bool? ?? false,
+        ),
         'error' => BoatError(
-            timestamp: ts,
-            exception: BoatNativeException(
-              map['message'] as String? ?? 'Unknown native error',
-              code: map['code'] as String?,
-            ),
+          timestamp: ts,
+          exception: BoatNativeException(
+            map['message'] as String? ?? 'Unknown native error',
+            code: map['code'] as String?,
           ),
+        ),
         _ => null,
       };
     } catch (e) {

@@ -7,10 +7,10 @@ enum PermissionType {
   bluetoothConnect;
 
   static PermissionType fromString(String value) => switch (value) {
-        'microphone' => PermissionType.microphone,
-        'bluetoothConnect' => PermissionType.bluetoothConnect,
-        _ => throw ArgumentError('Unknown PermissionType: $value'),
-      };
+    'microphone' => PermissionType.microphone,
+    'bluetoothConnect' => PermissionType.bluetoothConnect,
+    _ => throw ArgumentError('Unknown PermissionType: $value'),
+  };
 
   String toChannelString() => name;
 }

@@ -1,5 +1,3 @@
-
-
 import '../common/audio_route.dart';
 import 'boat_config.dart';
 
@@ -61,14 +59,14 @@ class BoatConfigBuilder {
   }
 
   BoatConfig build() => BoatConfig(
-        sampleRate: _sampleRate,
-        channelCount: _channelCount,
-        bitsPerSample: _bitsPerSample,
-        bufferDurationMs: _bufferDurationMs,
-        aec: _aec,
-        agc: _agc,
-        noiseSuppression: _noiseSuppression,
-        speakerMode: _speakerMode,
-        preferredRoute: _preferredRoute,
-      );
+    sampleRate: _sampleRate,
+    channelCount: _channelCount,
+    bitsPerSample: _bitsPerSample,
+    bufferDurationMs: _bufferDurationMs,
+    aec: _aec,
+    agc: _agc,
+    noiseSuppression: _noiseSuppression,
+    speakerMode: _speakerMode,
+    preferredRoute: _preferredRoute,
+  );
 }

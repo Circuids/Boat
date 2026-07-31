@@ -5,10 +5,7 @@ import 'boat_event.dart';
 class BoatError extends BoatEvent {
   final BoatException exception;
 
-  const BoatError({
-    required super.timestamp,
-    required this.exception,
-  });
+  const BoatError({required super.timestamp, required this.exception});
 
   @override
   String toString() => 'BoatError(${exception.message})';

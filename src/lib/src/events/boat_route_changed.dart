@@ -13,6 +13,5 @@ class BoatRouteChanged extends BoatEvent {
   });
 
   @override
-  String toString() =>
-      'BoatRouteChanged($previous → $current at $timestamp)';
+  String toString() => 'BoatRouteChanged($previous → $current at $timestamp)';
 }
