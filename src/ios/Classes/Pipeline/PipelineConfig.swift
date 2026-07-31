@@ -17,7 +17,10 @@ struct PipelineConfig {
 
     static func fromMap(_ map: [String: Any]) -> PipelineConfig {
         PipelineConfig(
-            frameDurationMs: map["bufferDurationMs"] as? Int ?? 20
+            frameDurationMs: map["bufferDurationMs"] as? Int ?? 20,
+            deadlineFraction: (map["deadlineFraction"] as? Double) ?? 0.80,
+            vadEnabled: map["vadEnabled"] as? Bool ?? false,
+            diagnosticsEnabled: map["diagnosticsEnabled"] as? Bool ?? false
         )
     }
 }

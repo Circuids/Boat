@@ -16,6 +16,8 @@ public class BoatPlugin: NSObject, FlutterPlugin {
 
     private let permissionManager = PermissionManager()
     private var currentState = "idle"
+    private var startTimeMs: Double = 0
+    private var lastConfig: [String: Any]?
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let methods = FlutterMethodChannel(name: "com.circuids.boat/methods",
@@ -41,15 +43,9 @@ public class BoatPlugin: NSObject, FlutterPlugin {
             emitState("idle")
             result(nil)
         case "pause":
-            pipeline?.stop()
-            playbackEngine?.stop()
-            emitState("paused")
-            result(nil)
+            handlePause(result)
         case "resume":
-            pipeline?.start()
-            try? playbackEngine?.start()
-            emitState("running")
-            result(nil)
+            handleResume(result)
         case "dispose":
             teardown()
             emitState("disposed")
@@ -60,6 +56,14 @@ public class BoatPlugin: NSObject, FlutterPlugin {
         case "flushPlayback":
             playbackEngine?.flush()
             result(nil)
+        case "play":
+            let args = call.arguments as? [String: Any] ?? [:]
+            if let pcm = args["pcm"] as? FlutterStandardTypedData {
+                playbackEngine?.write(pcm: pcm.data)
+                result(nil)
+            } else {
+                result(FlutterError(code: "INVALID_ARGUMENT", message: "pcm bytes required", details: nil))
+            }
         case "setRoute":
             result(nil) // iOS handles routing automatically in voiceChat mode
         case "getDiagnostics":
@@ -84,21 +88,50 @@ public class BoatPlugin: NSObject, FlutterPlugin {
         let args = call.arguments as? [String: Any] ?? [:]
         let sampleRate = args["sampleRate"] as? Int ?? 16000
         let bufferMs = args["bufferDurationMs"] as? Int ?? 20
+        let speakerMode = args["speakerMode"] as? Bool ?? true
+        let preferredRouteName = args["preferredRoute"] as? String ?? "speaker"
+
+        // Double-start guard: teardown any existing engine before re-creating.
+        if currentState == "running" || currentState == "paused" || currentState == "starting" {
+            teardown()
+        }
 
         emitState("starting")
+        lastConfig = args
 
         let session = AudioSessionManager()
+        session.onInterruption = { [weak self] ended, shouldResume in
+            if ended {
+                if shouldResume {
+                    self?.handleResume { _ in }
+                }
+            } else {
+                self?.handlePause { _ in }
+            }
+        }
+        session.onMediaServicesReset = { [weak self] in
+            // Media services were reset — must fully recreate the engine.
+            self?.teardown()
+            if let config = self?.lastConfig {
+                self?.handleStart(FlutterMethodCall(methodName: "start", arguments: config)) { _ in }
+            }
+        }
         do {
-            try session.activate(sampleRate: Double(sampleRate), bufferDurationMs: bufferMs)
+            try session.activate(sampleRate: Double(sampleRate),
+                                 bufferDurationMs: bufferMs,
+                                 speakerMode: speakerMode)
         } catch {
+            teardown()
             emitState("error")
+            publisher?.emitError(code: "START_FAILED", message: error.localizedDescription)
             result(FlutterError(code: "START_FAILED", message: error.localizedDescription, details: nil))
             return
         }
         sessionManager = session
 
         let pub = FramePublisher()
-        pub.setSink(captureSink)
+        pub.setEventSink(eventsSink)
+        pub.setCaptureSink(captureSink)
         publisher = pub
 
         let route = AudioRouteManager()
@@ -120,41 +153,85 @@ public class BoatPlugin: NSObject, FlutterPlugin {
         pipeline = pipe
 
         let capture = AudioCaptureEngine()
+        capture.targetSampleRate = Double(sampleRate)
         capture.onBuffer = { [weak pipe] buffer, _ in
             pipe?.handleBuffer(buffer)
         }
         do {
             try capture.start()
         } catch {
+            teardown()
             emitState("error")
+            publisher?.emitError(code: "START_FAILED", message: error.localizedDescription)
             result(FlutterError(code: "START_FAILED", message: error.localizedDescription, details: nil))
             return
         }
         captureEngine = capture
 
-        let playback = AudioPlaybackEngine()
+        // Playback shares the capture engine's AVAudioEngine so AEC can
+        // correlate the playback reference with the capture input.
+        let playback = AudioPlaybackEngine(engine: capture.engine)
         try? playback.start()
         playbackEngine = playback
 
+        startTimeMs = Date().timeIntervalSince1970 * 1000
+        emitState("running")
+        result(nil)
+    }
+
+    private func handlePause(_ result: @escaping FlutterResult) {
+        // Pause must stop capture — otherwise frames keep flowing while
+        // the engine is supposedly suspended.
+        pipeline?.stop()
+        captureEngine?.stop()
+        playbackEngine?.stop()
+        emitState("paused")
+        result(nil)
+    }
+
+    private func handleResume(_ result: @escaping FlutterResult) {
+        // Resume must restart capture — the tap was removed during pause.
+        playbackEngine?.start()
+        pipeline?.start()
+        do {
+            try captureEngine?.start()
+        } catch {
+            emitState("error")
+            publisher?.emitError(code: "RESUME_FAILED", message: error.localizedDescription)
+            result(FlutterError(code: "RESUME_FAILED", message: error.localizedDescription, details: nil))
+            return
+        }
         emitState("running")
         result(nil)
     }
 
     private func handleGetDiagnostics(_ result: @escaping FlutterResult) {
+        let session = AVAudioSession.sharedInstance()
+        let uptimeMs = startTimeMs > 0 ? Int(Date().timeIntervalSince1970 * 1000 - startTimeMs) : 0
+
+        // Real effect status — query the session for voice processing availability.
+        let voiceProcessingAvailable: Bool
+        if #available(iOS 13.0, *) {
+            voiceProcessingAvailable = session.isInputAvailable
+        } else {
+            voiceProcessingAvailable = false
+        }
+
         result([
             "deviceModel": UIDevice.current.model,
             "osVersion": UIDevice.current.systemVersion,
             "audioSessionId": 0,
             "effectStatus": [
-                "aec": ["supported": true, "available": true, "active": true],
-                "agc": ["supported": true, "available": true, "active": true],
-                "noiseSuppression": ["supported": true, "available": true, "active": true],
+                "aec": ["supported": voiceProcessingAvailable, "available": voiceProcessingAvailable, "active": currentState == "running"],
+                "agc": ["supported": voiceProcessingAvailable, "available": voiceProcessingAvailable, "active": currentState == "running"],
+                "noiseSuppression": ["supported": voiceProcessingAvailable, "available": voiceProcessingAvailable, "active": currentState == "running"],
             ],
             "currentRoute": routeManager?.currentRoute.rawValue ?? "speaker",
             "availableRoutes": (routeManager?.getAvailableRoutes() ?? [.speaker]).map(\.rawValue),
             "captureFrameCount": 0,
             "playbackFrameCount": 0,
-            "uptimeMs": 0,
+            "uptimeMs": uptimeMs,
+            "scoDeviceConnected": session.currentRoute.outputs.contains { $0.portType == .bluetoothHFP },
         ])
     }
 
@@ -171,6 +248,7 @@ public class BoatPlugin: NSObject, FlutterPlugin {
         sessionManager?.deactivate()
         sessionManager = nil
         publisher = nil
+        startTimeMs = 0
     }
 
     private func emitState(_ newState: String) {
@@ -184,11 +262,13 @@ public class BoatPlugin: NSObject, FlutterPlugin {
 extension BoatPlugin: FlutterStreamHandler {
     public func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
         eventsSink = events
+        publisher?.setEventSink(events)
         return nil
     }
 
     public func onCancel(withArguments arguments: Any?) -> FlutterError? {
         eventsSink = nil
+        publisher?.setEventSink(nil)
         return nil
     }
 }

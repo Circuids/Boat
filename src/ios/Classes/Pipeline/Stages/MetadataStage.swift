@@ -10,7 +10,7 @@ final class MetadataStage: PipelineStage {
         startNanos = DispatchTime.now().uptimeNanoseconds
     }
 
-    func process(frame: MutableAudioFrame) {
+    func process(frame: MutableAudioFrame) throws {
         frame.sequenceNumber = sequenceCounter
         sequenceCounter += 1
         frame.timestampNanos = Int64(DispatchTime.now().uptimeNanoseconds - startNanos)

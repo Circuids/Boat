@@ -76,10 +76,15 @@ final class PermissionManager {
         }
     }
 
-    /// If the dialog was never shown (undetermined → denied immediately),
-    /// the denial is restriction-based (MDM / parental controls).
+    /// User denial maps to `permanentlyDenied` (the dialog was shown and
+    /// the user said no — future requests won't show the dialog until the
+    /// user changes permission in Settings). `restricted` is reserved for
+    /// MDM/parental control restrictions where the dialog is never shown.
     private static func mapRequestResult(granted: Bool, wasUndetermined: Bool) -> String {
         if granted { return "granted" }
-        return wasUndetermined ? "restricted" : "permanentlyDenied"
+        // If the system was undetermined and the user was shown the dialog
+        // but denied, that's a user denial — permanentlyDenied.
+        // If the system was already denied, it's also permanentlyDenied.
+        return "permanentlyDenied"
     }
 }
