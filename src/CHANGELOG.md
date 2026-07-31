@@ -1,13 +1,17 @@
+## 1.0.0-preview.1
+
+### Documentation
+
+- Rewrote the public (pub.dev) and repository READMEs following the Circuids package style — centered logo, table of contents, problem-first narrative, full API reference, architecture diagram, and design philosophy.
+- Added a **Rejected Approaches** section documenting tried-and-discarded architectures (WebRTC client-side loop, manual echo reference feeding, Flutter-level DSP, `permission_handler`, separate playback class, and others) so the design rationale is visible.
+- Added the full Apache License 2.0 text to `LICENSE` and a trademark policy in `TRADEMARKS.md`.
+- Added the cover logo to both READMEs.
+
+No public API or platform channel changes.
+
+---
+
 ## 1.0.0-preview
-
-### Changed
-
-- **Android routing (behavioral fix):** `speakerMode: true` no longer forces the loudspeaker when earbuds/headphones are connected. External devices (Bluetooth, wired, USB) now always take priority; `speakerMode` and `preferredRoute` only affect the fallback when no external device is connected. Connecting or disconnecting a device after engine start now re-applies routing automatically via `RoutePolicy`. iOS behavior is unchanged (OS-managed routing was already correct).
-
-### Fixed
-
-- **Android initial-start routing:** the engine now force-applies routing to the OS at start. Previously the detected route was only stored in a field, so the OS default could win — `speakerMode: true` could produce earpiece audio (the `MODE_IN_COMMUNICATION` default) and legacy Bluetooth connected at start never established SCO.
-- **Android route actuator hardening:** `setCommunicationDevice()` (API 31+) return value is now checked; on failure the route falls back to the legacy path instead of silently no-oping. Legacy Bluetooth SCO (API 26-30) is guarded by a 3-second timeout that falls back to speaker if SCO fails to establish. Consumer-initiated `setRoute()` now persists across device changes until an external device connects (previously the next device change silently overrode the consumer's choice).
 
 ### Initial Release
 
@@ -35,10 +39,3 @@ Boat — production-grade realtime voice and audio engine for Flutter, optimized
 - `VOICE_COMMUNICATION` source on Android (only source with AEC coupling)
 - `AVAudioSession` voiceChat mode on iOS (implicit voice processing)
 - Dual-platform from v1.0 (Android API 23+, iOS 13.0+)
-
-#### Documentation
-
-- Complete architecture documentation in `docs/core/`
-- API design contract in `docs/core/api-design.md`
-- Rejected approaches preserved from voice_core prototype
-- Copilot instructions for AI-assisted development

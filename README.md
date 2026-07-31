@@ -10,7 +10,7 @@
 
 **Production-grade realtime voice and audio engine for Flutter** — clean, echo-free bidirectional audio for AI voice conversations.
 
-> **Status:** v1.0.0-preview. The public API is stable for review. Platform channel protocol may receive additive changes before the stable release.
+> **Status:** v1.0.0-preview.1. The public API is stable for review. Platform channel protocol may receive additive changes before the stable release.
 
 ---
 
@@ -79,7 +79,7 @@ Boat uses Android's native `AudioRecord`, `AudioTrack`, and `AudioEffects` APIs,
 
 ```yaml
 dependencies:
-  boat: 1.0.0-preview
+  boat: 1.0.0-preview.1
 ```
 
 ### 2. Platform Setup
@@ -517,8 +517,4 @@ The Boat name and logo are trademarks of Circuids and are not covered by the Apa
 
 - **Issues**: [GitHub Issues](https://github.com/Circuids/boat/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Circuids/boat/discussions)
-
----
-
-**Boat** — Clean, echo-free audio for realtime voice AI.
 
