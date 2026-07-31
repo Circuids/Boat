@@ -26,6 +26,7 @@
 - [Architecture](#architecture)
 - [Platform Requirements](#platform-requirements)
 - [Design Philosophy](#design-philosophy)
+- [Rejected Approaches](#rejected-approaches)
 - [License](#license)
 - [Also by Circuids](#also-by-circuids)
 - [Support](#support)
@@ -405,6 +406,25 @@ BoatException
 
 ---
 
+## Rejected Approaches
+
+Boat's architecture is the result of extensive experimentation. The following approaches were tried, measured, and explicitly rejected:
+
+| Approach | Why It Failed |
+|----------|---------------|
+| WebRTC client-side audio loop | No sample-accurate reference injection; clock drift between capture and playback stacks destroys AEC correlation |
+| Manual echo reference feeding | Dart VM and platform channel latency make sub-millisecond alignment impossible; software AEC is inferior to hardware DSP |
+| Flutter-level DSP (pure Dart / FFI) | GC pauses and channel overhead add unacceptable latency; no access to true analog reference signal; high CPU and battery cost |
+| `permission_handler` package | 4+ transitive dependencies for 2 permission types; violates zero-dependency philosophy |
+| Auto-request permissions in `start()` | Couples OS dialog timing to engine lifecycle; violates explicit-over-implicit design |
+| Separate playback class | Standalone playback bypasses the engine's audio session and breaks AEC correlation |
+| Custom playback queue with silence-writing | OS built-in buffers (`setBufferSizeInFrames`, `WRITE_BLOCKING`) handle queuing and underrun natively |
+| Event bus / async pipeline stages | Audio frames are inherently ordered; async communication breaks ordering guarantees and adds scheduling jitter |
+
+The consistent lesson: **the OS audio stack is the only layer where capture and playback share the timing context required for reliable echo cancellation.** Boat configures and observes that stack — it does not replace it.
+
+---
+
 ## License
 
 Apache License 2.0. Copyright (c) 2026 Circuids. See [LICENSE](LICENSE) for details.
@@ -419,7 +439,6 @@ The Boat name and logo are trademarks of Circuids and are not covered by the Apa
 |---------|-------------|
 | [**Fairy**](https://github.com/Circuids/Fairy) | Lightweight MVVM framework for Flutter with typed reactive data binding, commands, and DI — no code generation. |
 | [**Levee**](https://github.com/Circuids/Levee) | Dependency-free pagination engine with cache-first architecture and generic page key support. |
-| [**Pulse**](https://github.com/Circuids/Pulse) | Runtime conformance testing engine for .NET host applications. |
 
 ---
 
