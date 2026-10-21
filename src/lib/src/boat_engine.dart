@@ -31,6 +31,12 @@ class BoatEngine {
   // start/stop/dispose from racing the state machine.
   Completer<void>? _lifecycleLock;
 
+  // Effective playback rate of the running session, and whether the
+  // rate-mismatch warning has already been emitted for it. One warning per
+  // session — a per-frame warning would flood the events stream.
+  int? _playbackSampleRate;
+  bool _rateMismatchWarned = false;
+
   BoatEngine({BoatPlatform? platform})
     : _platform = platform ?? BoatPlatform.instance {
     _eventSub = _platform.events.listen(
@@ -95,7 +101,10 @@ class BoatEngine {
       }
       _sm.transition(BoatState.starting);
       try {
-        await _platform.start(config ?? BoatConfig());
+        final effective = config ?? BoatConfig();
+        await _platform.start(effective);
+        _playbackSampleRate = effective.effectivePlaybackSampleRate;
+        _rateMismatchWarned = false;
         _sm.transition(BoatState.running);
       } catch (e) {
         // Clean up partially-started native engine before erroring.
@@ -195,9 +204,32 @@ class BoatEngine {
 
   void play(AudioFrame frame) {
     _ensurePlaybackReady();
+    _warnOnRateMismatch(frame.sampleRate);
     _platform.play(frame.pcm);
   }
 
+  /// Playback PCM must be at the configured playback rate. A mismatch is
+  /// forwarded anyway (dropping audio is worse) but surfaced once per session.
+  void _warnOnRateMismatch(int frameSampleRate) {
+    final expected = _playbackSampleRate;
+    if (expected == null || frameSampleRate == expected || _rateMismatchWarned) {
+      return;
+    }
+    _rateMismatchWarned = true;
+    _eventController.add(
+      BoatWarning(
+        timestamp: DateTime.now(),
+        code: 'PLAYBACK_RATE_MISMATCH',
+        message:
+            'Frame is ${frameSampleRate}Hz but playback is configured for '
+            '${expected}Hz — audio will play at the wrong speed. Supply PCM at '
+            'BoatConfig.playbackSampleRate.',
+      ),
+    );
+  }
+
+  /// Plays raw PCM bytes. The bytes must already be at
+  /// [BoatConfig.effectivePlaybackSampleRate] — there is no format to check.
   void playRaw(Uint8List pcm) {
     _ensurePlaybackReady();
     _platform.play(pcm);
@@ -233,6 +265,8 @@ class BoatEngine {
       _sm.transition(BoatState.starting);
       try {
         await _platform.start(config);
+        _playbackSampleRate = config.effectivePlaybackSampleRate;
+        _rateMismatchWarned = false;
         _sm.transition(BoatState.running);
       } catch (e) {
         // Clean up partially-started native engine before erroring.
