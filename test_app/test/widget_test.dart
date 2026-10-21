@@ -8,9 +8,11 @@
 import 'package:boat/boat.dart';
 import 'package:boat_diagnostics/main.dart';
 import 'package:boat_diagnostics/services/boat_engine_service.dart';
+import 'package:boat_diagnostics/services/media_service.dart';
 import 'package:boat_diagnostics/services/metrics_collector.dart';
 import 'package:boat_diagnostics/services/mock_audio_server.dart';
 import 'package:boat_diagnostics/viewmodels/app_viewmodel.dart';
+import 'package:boat_diagnostics/viewmodels/media_viewmodel.dart';
 import 'package:fairy/fairy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -27,6 +29,10 @@ void main() {
     FairyLocator.registerSingleton<MetricsCollector>(MetricsCollector());
     FairyLocator.registerSingleton<AppViewModel>(
       AppViewModel(FairyLocator.get<BoatEngineService>()),
+    );
+    FairyLocator.registerSingleton<MediaService>(MediaService());
+    FairyLocator.registerSingleton<MediaViewModel>(
+      MediaViewModel(FairyLocator.get<MediaService>()),
     );
   });
 

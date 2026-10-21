@@ -32,6 +32,15 @@ class MockAudioServer with Disposable {
     });
   }
 
+  /// Picks the bundled clip that matches [playbackSampleRate].
+  ///
+  /// The 24 kHz clip is synthesized at 24 kHz, not resampled — so playing it
+  /// through a 24 kHz playback config exercises the real asymmetric path.
+  static String assetForPlaybackRate(int playbackSampleRate) =>
+      playbackSampleRate == 24000
+          ? 'assets/pcm/ai_response_24k.pcm'
+          : 'assets/pcm/ai_response_short.pcm';
+
   /// Stops any in-flight playback immediately (barge-in).
   Future<void> flush() => _engineService.engine.flushPlayback();
 
