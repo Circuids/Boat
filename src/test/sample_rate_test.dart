@@ -78,10 +78,15 @@ void main() {
     });
 
     test('toMap emits the effective rate, never null', () {
-      expect(BoatConfig(sampleRate: 16000).toMap()['playbackSampleRate'], 16000);
       expect(
-        BoatConfig(sampleRate: 16000, playbackSampleRate: 24000)
-            .toMap()['playbackSampleRate'],
+        BoatConfig(sampleRate: 16000).toMap()['playbackSampleRate'],
+        16000,
+      );
+      expect(
+        BoatConfig(
+          sampleRate: 16000,
+          playbackSampleRate: 24000,
+        ).toMap()['playbackSampleRate'],
         24000,
       );
     });
@@ -115,14 +120,8 @@ void main() {
     test('rejects non-positive playbackSampleRate', () {
       // Debug builds hit the assert first; release throws ArgumentError.
       // Both are Error subtypes.
-      expect(
-        () => BoatConfig(playbackSampleRate: 0),
-        throwsA(isA<Error>()),
-      );
-      expect(
-        () => BoatConfig(playbackSampleRate: -1),
-        throwsA(isA<Error>()),
-      );
+      expect(() => BoatConfig(playbackSampleRate: 0), throwsA(isA<Error>()));
+      expect(() => BoatConfig(playbackSampleRate: -1), throwsA(isA<Error>()));
     });
 
     test('toString reports the effective playback rate', () {
@@ -195,9 +194,10 @@ void main() {
 
     test('matching rate emits no warning', () async {
       final warnings = <BoatWarning>[];
-      engine.events.where((e) => e is BoatWarning).cast<BoatWarning>().listen(
-        warnings.add,
-      );
+      engine.events
+          .where((e) => e is BoatWarning)
+          .cast<BoatWarning>()
+          .listen(warnings.add);
 
       await engine.start(
         BoatConfig(sampleRate: 16000, playbackSampleRate: 24000),
@@ -205,14 +205,18 @@ void main() {
       engine.play(frameAt(24000));
       await Future<void>.delayed(Duration.zero);
 
-      expect(warnings.where((w) => w.code == 'PLAYBACK_RATE_MISMATCH'), isEmpty);
+      expect(
+        warnings.where((w) => w.code == 'PLAYBACK_RATE_MISMATCH'),
+        isEmpty,
+      );
     });
 
     test('mismatched rate warns exactly once for two frames', () async {
       final warnings = <BoatWarning>[];
-      engine.events.where((e) => e is BoatWarning).cast<BoatWarning>().listen(
-        warnings.add,
-      );
+      engine.events
+          .where((e) => e is BoatWarning)
+          .cast<BoatWarning>()
+          .listen(warnings.add);
 
       await engine.start(
         BoatConfig(sampleRate: 16000, playbackSampleRate: 24000),
@@ -231,9 +235,10 @@ void main() {
 
     test('warning resets after reconfigure', () async {
       final warnings = <BoatWarning>[];
-      engine.events.where((e) => e is BoatWarning).cast<BoatWarning>().listen(
-        warnings.add,
-      );
+      engine.events
+          .where((e) => e is BoatWarning)
+          .cast<BoatWarning>()
+          .listen(warnings.add);
 
       await engine.start(
         BoatConfig(sampleRate: 16000, playbackSampleRate: 24000),
@@ -255,15 +260,19 @@ void main() {
 
     test('symmetric config never warns', () async {
       final warnings = <BoatWarning>[];
-      engine.events.where((e) => e is BoatWarning).cast<BoatWarning>().listen(
-        warnings.add,
-      );
+      engine.events
+          .where((e) => e is BoatWarning)
+          .cast<BoatWarning>()
+          .listen(warnings.add);
 
       await engine.start(BoatConfig(sampleRate: 16000));
       engine.play(frameAt(16000));
       await Future<void>.delayed(Duration.zero);
 
-      expect(warnings.where((w) => w.code == 'PLAYBACK_RATE_MISMATCH'), isEmpty);
+      expect(
+        warnings.where((w) => w.code == 'PLAYBACK_RATE_MISMATCH'),
+        isEmpty,
+      );
     });
   });
 }

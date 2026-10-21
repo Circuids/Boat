@@ -61,8 +61,7 @@ class MethodChannelBoatMedia implements BoatMediaPlatform {
   }
 
   @override
-  Future<void> playPcm(Uint8List pcm) =>
-      _invoke('mediaPlayPcm', {'pcm': pcm});
+  Future<void> playPcm(Uint8List pcm) => _invoke('mediaPlayPcm', {'pcm': pcm});
 
   @override
   Future<void> playFile(String path, {bool loop = false}) =>

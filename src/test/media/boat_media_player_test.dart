@@ -135,10 +135,7 @@ void main() {
         'voice owns the session',
         code: 'MEDIA_BUSY',
       );
-      await expectLater(
-        player.start(),
-        throwsA(isA<BoatMediaBusyException>()),
-      );
+      await expectLater(player.start(), throwsA(isA<BoatMediaBusyException>()));
       expect(player.state, BoatMediaState.error);
     });
 
@@ -246,10 +243,7 @@ void main() {
         player.start(),
         throwsA(isA<BoatMediaStateException>()),
       );
-      await expectLater(
-        player.stop(),
-        throwsA(isA<BoatMediaStateException>()),
-      );
+      await expectLater(player.stop(), throwsA(isA<BoatMediaStateException>()));
     });
 
     test('is idempotent', () async {

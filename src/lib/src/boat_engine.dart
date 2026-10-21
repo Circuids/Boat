@@ -212,7 +212,9 @@ class BoatEngine {
   /// forwarded anyway (dropping audio is worse) but surfaced once per session.
   void _warnOnRateMismatch(int frameSampleRate) {
     final expected = _playbackSampleRate;
-    if (expected == null || frameSampleRate == expected || _rateMismatchWarned) {
+    if (expected == null ||
+        frameSampleRate == expected ||
+        _rateMismatchWarned) {
       return;
     }
     _rateMismatchWarned = true;

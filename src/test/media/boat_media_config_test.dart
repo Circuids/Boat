@@ -11,10 +11,7 @@ void main() {
     });
 
     test('toMap emits the channel keys', () {
-      final map = BoatMediaConfig(
-        sampleRate: 16000,
-        channelCount: 1,
-      ).toMap();
+      final map = BoatMediaConfig(sampleRate: 16000, channelCount: 1).toMap();
       expect(map, {
         'sampleRate': 16000,
         'channelCount': 1,
