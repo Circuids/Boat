@@ -14,6 +14,15 @@ class BoatDiagnostics {
   final int playbackFrameCount;
   final Duration uptime;
 
+  /// Rate capture is actually running at, as applied by the platform.
+  final int captureSampleRate;
+
+  /// Rate playback is actually configured for, as applied by the platform.
+  ///
+  /// On iOS the session may negotiate a different rate than requested; this
+  /// reports the applied value so a mismatch is observable.
+  final int playbackSampleRate;
+
   /// True if a Bluetooth HFP/SCO device is connected (e.g. Phone Link, car kit).
   /// An active SCO link couples capture to 8 kHz narrowband — expect degraded quality.
   final bool scoDeviceConnected;
@@ -28,6 +37,8 @@ class BoatDiagnostics {
     required this.captureFrameCount,
     required this.playbackFrameCount,
     required this.uptime,
+    this.captureSampleRate = 0,
+    this.playbackSampleRate = 0,
     this.scoDeviceConnected = false,
   });
 
@@ -84,6 +95,8 @@ class BoatDiagnostics {
       captureFrameCount: map['captureFrameCount'] as int? ?? 0,
       playbackFrameCount: map['playbackFrameCount'] as int? ?? 0,
       uptime: Duration(milliseconds: map['uptimeMs'] as int? ?? 0),
+      captureSampleRate: map['captureSampleRate'] as int? ?? 0,
+      playbackSampleRate: map['playbackSampleRate'] as int? ?? 0,
       scoDeviceConnected: map['scoDeviceConnected'] as bool? ?? false,
     );
   }
@@ -93,5 +106,6 @@ class BoatDiagnostics {
       'BoatDiagnostics(device: $deviceModel, os: $osVersion, '
       'session: $audioSessionId, route: $currentRoute, '
       'captureFrames: $captureFrameCount, playbackFrames: $playbackFrameCount, '
+      'rates: $captureSampleRate/$playbackSampleRate, '
       'sco: $scoDeviceConnected)';
 }
