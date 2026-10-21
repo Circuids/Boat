@@ -15,7 +15,7 @@ packages:
       path: "../src"
       relative: true
     source: path
-    version: "1.0.0"
+    version: "1.0.0-preview.2"
   boolean_selector:
     dependency: transitive
     description:
