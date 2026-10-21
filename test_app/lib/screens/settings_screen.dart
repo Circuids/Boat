@@ -34,6 +34,8 @@ class _Body extends StatelessWidget {
         SizedBox(height: 16),
         _SampleRateSelector(),
         SizedBox(height: 16),
+        _PlaybackRateSelector(),
+        SizedBox(height: 16),
         _RouteSelector(),
         SizedBox(height: 24),
         _ReconfigureButton(),
@@ -106,9 +108,42 @@ class _SampleRateSelector extends StatelessWidget {
   }
 }
 
+/// Playback rate, independent of the capture rate.
+///
+/// `null` means "same as capture". Selecting 24 kHz while capture stays at
+/// 16 kHz exercises the asymmetric-rate path.
+class _PlaybackRateSelector extends StatelessWidget {
+  const _PlaybackRateSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    return Bind.viewModel<SettingsViewModel>(
+      builder: (context, vm) => Card(
+        child: ListTile(
+          title: const Text('Playback rate'),
+          subtitle: Text(
+            vm.playbackSampleRate.value == null
+                ? 'Same as capture'
+                : '${vm.playbackSampleRate.value} Hz',
+          ),
+          trailing: DropdownButton<int?>(
+            value: vm.playbackSampleRate.value,
+            items: const [
+              DropdownMenuItem<int?>(value: null, child: Text('Same as capture')),
+              DropdownMenuItem<int?>(value: 16000, child: Text('16000 Hz')),
+              DropdownMenuItem<int?>(value: 24000, child: Text('24000 Hz')),
+              DropdownMenuItem<int?>(value: 48000, child: Text('48000 Hz')),
+            ],
+            onChanged: (v) => vm.playbackSampleRate.value = v,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _RouteSelector extends StatelessWidget {
   const _RouteSelector();
-
   @override
   Widget build(BuildContext context) {
     final routes = AudioRoute.values;

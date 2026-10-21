@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'conversation_screen.dart';
 import 'diagnostics_screen.dart';
+import 'media_screen.dart';
 import 'settings_screen.dart';
 
 /// Bottom-nav shell hosting the three test screens.
@@ -17,6 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   static const _screens = [
     ConversationScreen(),
+    MediaScreen(),
     DiagnosticsScreen(),
     SettingsScreen(),
   ];
@@ -32,6 +34,10 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(
             icon: Icon(Icons.mic),
             label: 'Conversation',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.music_note),
+            label: 'Media',
           ),
           NavigationDestination(
             icon: Icon(Icons.analytics),

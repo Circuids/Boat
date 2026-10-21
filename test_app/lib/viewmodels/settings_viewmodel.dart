@@ -10,6 +10,9 @@ class SettingsViewModel extends ObservableObject {
   final AppViewModel _appVM;
 
   final sampleRate = ObservableProperty<int>(16000);
+
+  /// Playback rate. `null` means "same as capture".
+  final playbackSampleRate = ObservableProperty<int?>(null);
   final aec = ObservableProperty<bool>(true);
   final agc = ObservableProperty<bool>(true);
   final noiseSuppression = ObservableProperty<bool>(true);
@@ -19,13 +22,22 @@ class SettingsViewModel extends ObservableObject {
   late final config = ComputedProperty<BoatConfig>(
     () => BoatConfig(
       sampleRate: sampleRate.value,
+      playbackSampleRate: playbackSampleRate.value,
       aec: aec.value,
       agc: agc.value,
       noiseSuppression: noiseSuppression.value,
       speakerMode: speakerMode.value,
       preferredRoute: preferredRoute.value,
     ),
-    [sampleRate, aec, agc, noiseSuppression, speakerMode, preferredRoute],
+    [
+      sampleRate,
+      playbackSampleRate,
+      aec,
+      agc,
+      noiseSuppression,
+      speakerMode,
+      preferredRoute,
+    ],
     this,
   );
 

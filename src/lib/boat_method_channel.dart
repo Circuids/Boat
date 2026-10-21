@@ -12,11 +12,10 @@ import 'src/models/models.dart';
 
 /// Method-channel implementation of [BoatPlatform].
 ///
-/// Wires Dart ↔ native via four channels:
-/// - `com.circuids.boat/methods` (Dart → Native)
+/// Wires Dart ↔ native via three channels:
+/// - `com.circuids.boat/methods` (Dart → Native) — lifecycle, config, playback PCM, permissions
 /// - `com.circuids.boat/events` (Native → Dart)
 /// - `com.circuids.boat/capture` (Native → Dart)
-/// - `com.circuids.boat/playback` (Dart → Native)
 class MethodChannelBoat extends BoatPlatform {
   @visibleForTesting
   static const methodsChannel = MethodChannel('com.circuids.boat/methods');
@@ -26,9 +25,6 @@ class MethodChannelBoat extends BoatPlatform {
 
   @visibleForTesting
   static const captureChannel = EventChannel('com.circuids.boat/capture');
-
-  @visibleForTesting
-  static const playbackChannel = EventChannel('com.circuids.boat/playback');
 
   final StreamController<BoatEvent> _eventsController =
       StreamController<BoatEvent>.broadcast();

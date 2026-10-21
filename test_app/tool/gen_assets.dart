@@ -1,21 +1,27 @@
-// Generates raw PCM test assets (16kHz, 16-bit signed LE, mono) for the
-// real-world test app. Run from test_app/: `dart run tool/gen_assets.dart`.
+// Generates raw PCM test assets for the real-world test app.
+// Run from test_app/: `dart run tool/gen_assets.dart`.
 //
-// Produces two clips in assets/pcm/:
-//   ai_response_short.pcm  ~3s  — 300-700Hz warble (short AI reply)
-//   ai_response_long.pcm   ~10s — 200-900Hz sweep (sustained AEC stress)
+// Produces three clips in assets/pcm/:
+//   ai_response_short.pcm     ~3s  — 16 kHz, 300-700Hz warble (short AI reply)
+//   ai_response_long.pcm      ~10s — 16 kHz, 200-900Hz sweep (sustained AEC stress)
+//   ai_response_24k.pcm       ~3s  — 24 kHz, same warble (asymmetric-rate scenario)
 //
 // Raw PCM (no WAV header) matches engine.playRaw(Uint8List) expectations.
+// The 24 kHz clip is synthesized at 24 kHz — never resampled from the 16 kHz
+// one — so the asymmetric scenario proves the real playback path.
 
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
-const int sampleRate = 16000;
 const int bitsPerSample = 16;
 const int channels = 1;
 
-Uint8List synthesize(Duration duration, double Function(double t) wave) {
+Uint8List synthesize(
+  Duration duration,
+  double Function(double t) wave, {
+  int sampleRate = 16000,
+}) {
   final samples = (sampleRate * duration.inMilliseconds / 1000).round();
   final bytes = ByteData(samples * bitsPerSample ~/ 8 * channels);
   for (var i = 0; i < samples; i++) {
@@ -51,4 +57,16 @@ void main() {
   );
   File('${outDir.path}/ai_response_long.pcm').writeAsBytesSync(long);
   stdout.writeln('Wrote ai_response_long.pcm (${long.length} bytes)');
+
+  // 24 kHz: same warble, synthesized at 24 kHz for the asymmetric-rate scenario.
+  final wide = synthesize(
+    const Duration(seconds: 3),
+    (t) {
+      final f = 500 + 200 * sin(2 * pi * 2 * t);
+      return sin(2 * pi * f * t);
+    },
+    sampleRate: 24000,
+  );
+  File('${outDir.path}/ai_response_24k.pcm').writeAsBytesSync(wide);
+  stdout.writeln('Wrote ai_response_24k.pcm (${wide.length} bytes)');
 }

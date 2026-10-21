@@ -375,6 +375,75 @@ BoatException
 
 ---
 
+## Media Playback
+
+Boat also ships an **independent media bus** for application audio — UI sounds,
+notification cues, bundled WAV clips — that has nothing to do with AEC, AGC, or
+the capture pipeline. It requires no microphone permission and works while the
+voice engine is stopped.
+
+```dart
+import 'package:boat/boat_media.dart';
+
+final media = BoatMediaPlayer();
+await media.start();
+await media.playAsset('assets/sounds/click.wav');
+await media.dispose();
+```
+
+Media and voice are **mutually exclusive owners of the OS audio session**:
+
+- `media.start()` throws `BoatMediaBusyException` while the voice engine runs.
+- Starting the voice engine stops media and emits `BoatMediaPreempted`.
+
+Because the buses never overlap, there is no mixing, no ducking, and no
+per-platform echo policy to reason about. See
+[`docs/core/architecture.md`](docs/core/architecture.md) → Media Playback Bus.
+
+> **Not for AI/TTS audio.** The media bus is mutually exclusive with the voice
+> session, so it cannot play the AI's voice while capture runs — and on Android
+> media is not echo-cancelled, so it would leak into the microphone. AI audio
+> belongs on `BoatEngine.play()`.
+
+---
+
+## Asymmetric Sample Rates
+
+Capture and playback share one audio session (AEC requires it) but can run at
+**different rates** — 16 kHz capture for speech recognition, 24 kHz for TTS
+output:
+
+```dart
+final engine = BoatEngine();
+await engine.start(BoatConfig(
+  sampleRate: 16000,          // capture
+  playbackSampleRate: 24000,  // playback
+));
+
+// Supply playback PCM at the declared playback rate.
+engine.playRaw(ttsPcmAt24kHz);
+```
+
+`playbackSampleRate` is optional — `null` (the default) means "same as
+`sampleRate`", so existing configs behave identically.
+
+**Boat does not resample.** The consumer supplies playback PCM at
+`effectivePlaybackSampleRate`; `AudioTrack` and `AVAudioEngine` convert to the
+hardware rate. This keeps the OS as the only resampler in the path.
+
+`BoatDiagnostics` reports both rates actually applied, so a platform that
+negotiates differently than requested is observable:
+
+```dart
+final d = await engine.diagnostics;
+print('${d.captureSampleRate} Hz in / ${d.playbackSampleRate} Hz out');
+```
+
+`play(AudioFrame)` warns once per session with `PLAYBACK_RATE_MISMATCH` if
+`frame.sampleRate` differs from the configured playback rate.
+
+---
+
 ## Platform Requirements
 
 | Platform | Minimum Version | Notes |

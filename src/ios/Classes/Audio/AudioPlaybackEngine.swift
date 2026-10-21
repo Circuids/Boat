@@ -4,23 +4,33 @@ import AVFoundation
 ///
 /// Uses a shared AVAudioEngine instance (provided by AudioCaptureEngine)
 /// so that AEC can correlate playback and capture within a single graph.
+///
+/// The player format is the *declared* playback rate, not the session rate.
+/// Deriving it from the session silently reinterpreted consumer bytes at the
+/// wrong rate whenever the two differed (e.g. 16 kHz PCM on a 48 kHz session
+/// played 3x fast). AVAudioEngine converts the player format to the mixer rate.
 final class AudioPlaybackEngine {
     private let engine: AVAudioEngine
     private let playerNode = AVAudioPlayerNode()
+    private let sampleRate: Double
     private var isPlaying = false
     private var format: AVAudioFormat?
 
-    init(engine: AVAudioEngine) {
+    init(engine: AVAudioEngine, sampleRate: Double) {
         self.engine = engine
+        self.sampleRate = sampleRate
     }
 
     func start() throws {
-        // Derive the playback format from the session's actual sample rate
-        // rather than hardcoding 16kHz — the session may have negotiated a
-        // different rate with the hardware.
-        let sessionRate = AVAudioSession.sharedInstance().sampleRate
-        let fmt = AVAudioFormat(commonFormat: .pcmFormatInt16,
-                                sampleRate: sessionRate, channels: 1, interleaved: false)
+        guard let fmt = AVAudioFormat(commonFormat: .pcmFormatInt16,
+                                      sampleRate: sampleRate,
+                                      channels: 1,
+                                      interleaved: false) else {
+            throw NSError(domain: "Boat", code: -1, userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Cannot build AVAudioFormat for \(sampleRate)Hz playback",
+            ])
+        }
         format = fmt
         engine.attach(playerNode)
         engine.connect(playerNode, to: engine.mainMixerNode, format: fmt)

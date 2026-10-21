@@ -3,6 +3,8 @@ package com.circuids.boat
 import android.app.Activity
 import android.content.Context
 import com.circuids.boat.audio.*
+import com.circuids.boat.media.BoatMediaPlugin
+import com.circuids.boat.media.MediaSessionArbiter
 import com.circuids.boat.permission.PermissionManager
 import com.circuids.boat.pipeline.*
 import com.circuids.boat.pipeline.stages.MetadataStage
@@ -36,8 +38,12 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
     private var currentState = "idle"
     private var startTimeMs = 0L
+    // Rates actually applied to the running engines — reported by diagnostics.
+    private var appliedCaptureSampleRate = 0
+    private var appliedPlaybackSampleRate = 0
     private lateinit var appContext: Context
     private var permissionManager: PermissionManager? = null
+    private var mediaPlugin: BoatMediaPlugin? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         appContext = binding.applicationContext
@@ -67,10 +73,14 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         })
 
         permissionManager = PermissionManager(appContext)
+
+        mediaPlugin = BoatMediaPlugin(appContext).also { it.attach(messenger) }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         teardown()
+        mediaPlugin?.detach()
+        mediaPlugin = null
         methodsChannel.setMethodCallHandler(null)
         permissionManager = null
     }
@@ -137,6 +147,9 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
             val args = call.arguments as? Map<*, *> ?: emptyMap<String, Any>()
             val sampleRate = (args["sampleRate"] as? Number)?.toInt() ?: 16000
+            // Capture and playback share one session (AEC) but may differ in rate.
+            val playbackSampleRate =
+                (args["playbackSampleRate"] as? Number)?.toInt() ?: sampleRate
             val bufferMs = (args["bufferDurationMs"] as? Number)?.toInt() ?: 20
             val enableAec = args["aec"] as? Boolean ?: true
             val enableAgc = args["agc"] as? Boolean ?: true
@@ -145,6 +158,9 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val preferredRouteName = args["preferredRoute"] as? String ?: "speaker"
 
             emitState("starting")
+
+            // Voice always wins the audio session: preempts media playback.
+            MediaSessionArbiter.acquireVoice()
 
             val session = AudioSessionManager(appContext)
             session.onFocusLost = {
@@ -159,6 +175,7 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val capture = AudioCaptureEngine(sampleRate, bufferMs)
             val sessionId = capture.create()
             captureEngine = capture
+            appliedCaptureSampleRate = sampleRate
 
             val effects = EffectsManager()
             effects.attach(sessionId, enableAec, enableAgc, enableNs)
@@ -181,10 +198,11 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             route.applyPolicy(force = true)
             routeManager = route
 
-            val playback = AudioPlaybackEngine(sampleRate, sessionId)
+            val playback = AudioPlaybackEngine(playbackSampleRate, sessionId)
             playback.create()
             playback.start()
             playbackEngine = playback
+            appliedPlaybackSampleRate = playbackSampleRate
 
             val config = PipelineConfig.fromMap(args.mapKeys { it.key.toString() })
             val metadataStage = MetadataStage { route.currentRoute.channelName }
@@ -277,6 +295,8 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 "availableRoutes" to (routeManager?.getAvailableRoutes()?.map { it.channelName } ?: listOf("speaker")),
                 "captureFrameCount" to (pipeline?.captureFrameCount ?: 0),
                 "playbackFrameCount" to (playbackEngine?.playbackFrameCount ?: 0),
+                "captureSampleRate" to appliedCaptureSampleRate,
+                "playbackSampleRate" to appliedPlaybackSampleRate,
                 "uptimeMs" to uptimeMs,
                 "scoDeviceConnected" to (routeManager?.isScoDeviceConnected() ?: false),
             )
@@ -299,6 +319,9 @@ class BoatPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         sessionManager = null
         publisher = null
         startTimeMs = 0
+        appliedCaptureSampleRate = 0
+        appliedPlaybackSampleRate = 0
+        MediaSessionArbiter.release(MediaSessionArbiter.Owner.VOICE)
     }
 
     private fun emitState(newState: String) {
