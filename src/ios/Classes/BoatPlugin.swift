@@ -18,6 +18,9 @@ public class BoatPlugin: NSObject, FlutterPlugin {
     private var currentState = "idle"
     private var startTimeMs: Double = 0
     private var lastConfig: [String: Any]?
+    // Rates actually applied to the running engines — reported by diagnostics.
+    private var appliedCaptureSampleRate = 0
+    private var appliedPlaybackSampleRate = 0
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         let methods = FlutterMethodChannel(name: "com.circuids.boat/methods",
@@ -32,6 +35,8 @@ public class BoatPlugin: NSObject, FlutterPlugin {
 
         events.setStreamHandler(instance)
         capture.setStreamHandler(CaptureStreamHandler { instance.captureSink = $0 })
+
+        BoatMediaPlugin.register(with: registrar)
     }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -87,6 +92,8 @@ public class BoatPlugin: NSObject, FlutterPlugin {
     private func handleStart(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         let args = call.arguments as? [String: Any] ?? [:]
         let sampleRate = args["sampleRate"] as? Int ?? 16000
+        // Capture and playback share one session (AEC) but may differ in rate.
+        let playbackSampleRate = args["playbackSampleRate"] as? Int ?? sampleRate
         let bufferMs = args["bufferDurationMs"] as? Int ?? 20
         let speakerMode = args["speakerMode"] as? Bool ?? true
         let preferredRouteName = args["preferredRoute"] as? String ?? "speaker"
@@ -98,6 +105,9 @@ public class BoatPlugin: NSObject, FlutterPlugin {
 
         emitState("starting")
         lastConfig = args
+
+        // Voice always wins the audio session: preempts media playback.
+        MediaSessionArbiter.shared.acquireVoice()
 
         let session = AudioSessionManager()
         session.onInterruption = { [weak self] ended, shouldResume in
@@ -117,7 +127,8 @@ public class BoatPlugin: NSObject, FlutterPlugin {
             }
         }
         do {
-            try session.activate(sampleRate: Double(sampleRate),
+            try session.activate(captureSampleRate: Double(sampleRate),
+                                 playbackSampleRate: Double(playbackSampleRate),
                                  bufferDurationMs: bufferMs,
                                  speakerMode: speakerMode)
         } catch {
@@ -170,9 +181,12 @@ public class BoatPlugin: NSObject, FlutterPlugin {
 
         // Playback shares the capture engine's AVAudioEngine so AEC can
         // correlate the playback reference with the capture input.
-        let playback = AudioPlaybackEngine(engine: capture.engine)
+        let playback = AudioPlaybackEngine(engine: capture.engine,
+                                           sampleRate: Double(playbackSampleRate))
         try? playback.start()
         playbackEngine = playback
+        appliedCaptureSampleRate = sampleRate
+        appliedPlaybackSampleRate = playbackSampleRate
 
         startTimeMs = Date().timeIntervalSince1970 * 1000
         emitState("running")
@@ -230,6 +244,8 @@ public class BoatPlugin: NSObject, FlutterPlugin {
             "availableRoutes": (routeManager?.getAvailableRoutes() ?? [.speaker]).map(\.rawValue),
             "captureFrameCount": 0,
             "playbackFrameCount": 0,
+            "captureSampleRate": appliedCaptureSampleRate,
+            "playbackSampleRate": appliedPlaybackSampleRate,
             "uptimeMs": uptimeMs,
             "scoDeviceConnected": session.currentRoute.outputs.contains { $0.portType == .bluetoothHFP },
         ])
@@ -249,6 +265,9 @@ public class BoatPlugin: NSObject, FlutterPlugin {
         sessionManager = nil
         publisher = nil
         startTimeMs = 0
+        appliedCaptureSampleRate = 0
+        appliedPlaybackSampleRate = 0
+        MediaSessionArbiter.shared.release(.voice)
     }
 
     private func emitState(_ newState: String) {

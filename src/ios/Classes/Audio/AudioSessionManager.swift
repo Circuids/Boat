@@ -21,13 +21,18 @@ final class AudioSessionManager {
     /// torn down and recreated.
     var onMediaServicesReset: (() -> Void)?
 
-    func activate(sampleRate: Double, bufferDurationMs: Int, speakerMode: Bool = true) throws {
+    func activate(captureSampleRate: Double,
+                  playbackSampleRate: Double,
+                  bufferDurationMs: Int,
+                  speakerMode: Bool = true) throws {
         var options: AVAudioSession.CategoryOptions = [.allowBluetooth]
         if speakerMode {
             options.insert(.defaultToSpeaker)
         }
         try session.setCategory(.playAndRecord, mode: .voiceChat, options: options)
-        try session.setPreferredSampleRate(sampleRate)
+        // Prefer the higher of the two rates so the higher-rate direction needs
+        // no conversion; the lower-rate direction uses its existing converter.
+        try session.setPreferredSampleRate(max(captureSampleRate, playbackSampleRate))
         try session.setPreferredIOBufferDuration(Double(bufferDurationMs) / 1000.0)
         try session.setActive(true)
         registerNotifications()
