@@ -6,8 +6,15 @@ import 'boat_config_builder.dart';
 /// All parameters have sensible defaults for voice communication.
 /// Use [BoatConfig.builder] for fluent construction.
 class BoatConfig {
-  /// Audio sample rate in Hz. Default: 16000.
+  /// Capture sample rate in Hz. Default: 16000.
   final int sampleRate;
+
+  /// Playback sample rate in Hz, or `null` to use [sampleRate].
+  ///
+  /// Capture and playback share one audio session (AEC requires it) but may run
+  /// at different rates — e.g. 16 kHz capture for ASR with 24 kHz TTS output.
+  /// Boat does not resample: supply playback PCM at [effectivePlaybackSampleRate].
+  final int? playbackSampleRate;
 
   /// Number of audio channels. Default: 1 (mono).
   final int channelCount;
@@ -35,6 +42,7 @@ class BoatConfig {
 
   BoatConfig({
     this.sampleRate = 16000,
+    this.playbackSampleRate,
     this.channelCount = 1,
     this.bitsPerSample = 16,
     this.bufferDurationMs = 20,
@@ -44,6 +52,10 @@ class BoatConfig {
     this.speakerMode = true,
     this.preferredRoute = AudioRoute.speaker,
   }) : assert(sampleRate > 0, 'sampleRate must be positive'),
+       assert(
+         playbackSampleRate == null || playbackSampleRate > 0,
+         'playbackSampleRate must be positive when set',
+       ),
        assert(channelCount > 0, 'channelCount must be positive'),
        assert(bitsPerSample == 16, 'Only 16-bit PCM is supported in v1.0'),
        assert(bufferDurationMs > 0, 'bufferDurationMs must be positive'),
@@ -55,6 +67,13 @@ class BoatConfig {
     // constructor body must throw to catch invalid configs in production.
     if (sampleRate <= 0) {
       throw ArgumentError.value(sampleRate, 'sampleRate', 'must be positive');
+    }
+    if (playbackSampleRate != null && playbackSampleRate! <= 0) {
+      throw ArgumentError.value(
+        playbackSampleRate,
+        'playbackSampleRate',
+        'must be positive when set',
+      );
     }
     if (channelCount <= 0) {
       throw ArgumentError.value(
@@ -89,9 +108,16 @@ class BoatConfig {
   /// Creates a [BoatConfigBuilder] for fluent configuration.
   static BoatConfigBuilder builder() => BoatConfigBuilder();
 
+  /// The rate playback actually uses: [playbackSampleRate] when set, else
+  /// [sampleRate].
+  int get effectivePlaybackSampleRate => playbackSampleRate ?? sampleRate;
+
   /// Serializes this config to a map for platform channel transport.
+  ///
+  /// Emits the *effective* playback rate so native never resolves a fallback.
   Map<String, dynamic> toMap() => {
     'sampleRate': sampleRate,
+    'playbackSampleRate': effectivePlaybackSampleRate,
     'channelCount': channelCount,
     'bitsPerSample': bitsPerSample,
     'bufferDurationMs': bufferDurationMs,
@@ -107,6 +133,7 @@ class BoatConfig {
       identical(this, other) ||
       other is BoatConfig &&
           sampleRate == other.sampleRate &&
+          effectivePlaybackSampleRate == other.effectivePlaybackSampleRate &&
           channelCount == other.channelCount &&
           bitsPerSample == other.bitsPerSample &&
           bufferDurationMs == other.bufferDurationMs &&
@@ -119,6 +146,7 @@ class BoatConfig {
   @override
   int get hashCode => Object.hash(
     sampleRate,
+    effectivePlaybackSampleRate,
     channelCount,
     bitsPerSample,
     bufferDurationMs,
@@ -131,7 +159,9 @@ class BoatConfig {
 
   @override
   String toString() =>
-      'BoatConfig(sampleRate: $sampleRate, channels: $channelCount, '
+      'BoatConfig(sampleRate: $sampleRate, '
+      'playbackSampleRate: $effectivePlaybackSampleRate, '
+      'channels: $channelCount, '
       'bits: $bitsPerSample, buffer: ${bufferDurationMs}ms, '
       'aec: $aec, agc: $agc, ns: $noiseSuppression, '
       'speaker: $speakerMode, route: $preferredRoute)';

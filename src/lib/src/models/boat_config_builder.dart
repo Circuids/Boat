@@ -4,6 +4,7 @@ import 'boat_config.dart';
 /// Builder for [BoatConfig] with fluent API.
 class BoatConfigBuilder {
   int _sampleRate = 16000;
+  int? _playbackSampleRate;
   int _channelCount = 1;
   int _bitsPerSample = 16;
   int _bufferDurationMs = 20;
@@ -15,6 +16,12 @@ class BoatConfigBuilder {
 
   BoatConfigBuilder sampleRate(int value) {
     _sampleRate = value;
+    return this;
+  }
+
+  /// Sets the playback rate independently of the capture rate.
+  BoatConfigBuilder playbackSampleRate(int value) {
+    _playbackSampleRate = value;
     return this;
   }
 
@@ -60,6 +67,7 @@ class BoatConfigBuilder {
 
   BoatConfig build() => BoatConfig(
     sampleRate: _sampleRate,
+    playbackSampleRate: _playbackSampleRate,
     channelCount: _channelCount,
     bitsPerSample: _bitsPerSample,
     bufferDurationMs: _bufferDurationMs,
