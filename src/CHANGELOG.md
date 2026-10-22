@@ -1,3 +1,22 @@
+## 1.0.0-preview.3
+
+### Toolchain
+
+- **Android: migrated to built-in Kotlin.** The plugin's `android/build.gradle` is now `android/build.gradle.kts` and no longer applies the Kotlin Gradle Plugin (`kotlin-android` / `org.jetbrains.kotlin.android`). AGP 9+ provides Kotlin support natively, and applying KGP on top of it fails the build. `kotlinOptions { jvmTarget }` is replaced by the `kotlin { compilerOptions { jvmTarget } }` DSL, which requires KGP 2.0.0+.
+  - This fixes `Failed to apply plugin 'kotlin-android'` / `this and base files have different roots` and the follow-on `project ':boat' does not specify compileSdk` failure when the plugin is consumed from the pub cache on a different drive than the app.
+  - `compileSdk` is now declared through the Kotlin DSL `android {}` block, so it is visible to AGP during configuration.
+- **iOS: added Swift Package Manager support.** Sources moved from `ios/Classes/` to `ios/boat/Sources/boat/`, with a new `ios/boat/Package.swift`. The podspec now points at the new path, so CocoaPods consumers are unaffected.
+- **Minimum SDKs raised** to Flutter 3.44 / Dart 3.12, as required by the built-in Kotlin migration.
+- The example app and the diagnostics test app were aligned with the current Flutter Android template (AGP 9.1.0, KGP 2.4.0, Gradle 9.3.1, `android.newDsl=false`, `android.builtInKotlin=false`).
+
+### Documentation
+
+- Shortened the `pubspec.yaml` description to fit pub.dev's 60–180 character guidance.
+
+No public API or platform channel changes.
+
+---
+
 ## 1.0.0-preview.2
 
 ### Features
