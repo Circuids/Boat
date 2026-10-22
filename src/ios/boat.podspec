@@ -13,7 +13,7 @@ Production-grade realtime voice and audio engine with OS-level AEC, AGC, and noi
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'circuids' => 'circuids@users.noreply.github.com' }
   s.source           = { :path => '.' }
-  s.source_files = 'Classes/**/*'
+  s.source_files = 'boat/Sources/boat/**/*'
   s.dependency 'Flutter'
   s.platform = :ios, '13.0'
 
@@ -22,5 +22,5 @@ Production-grade realtime voice and audio engine with OS-level AEC, AGC, and noi
   s.swift_version = '5.0'
 
   # Privacy manifest declaring microphone usage and required-reason APIs.
-  s.resource_bundles = {'boat_privacy' => ['Resources/PrivacyInfo.xcprivacy']}
+  s.resource_bundles = {'boat_privacy' => ['boat/Sources/boat/PrivacyInfo.xcprivacy']}
 end

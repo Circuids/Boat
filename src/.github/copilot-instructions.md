@@ -67,8 +67,8 @@ The capture path uses an internal sequential pipeline (`PipelineRunner`). It is 
 | `lib/src/` | Implementation (models, engine, platform interface) |
 | `android/src/main/kotlin/com/circuids/boat/` | Android native plugin |
 | `android/src/main/kotlin/com/circuids/boat/pipeline/` | Android pipeline (PipelineRunner, stages, FramePublisher) |
-| `ios/Classes/` | iOS native plugin |
-| `ios/Classes/Pipeline/` | iOS pipeline (PipelineRunner, stages, FramePublisher) |
+| `ios/boat/Sources/boat/` | iOS native plugin |
+| `ios/boat/Sources/boat/Pipeline/` | iOS pipeline (PipelineRunner, stages, FramePublisher) |
 | `docs/core/api-design.md` (repo root) | Public API contract |
 | `docs/core/architecture.md` (repo root) | System design and AEC responsibility |
 | `docs/core/platform-architecture.md` (repo root) | Native platform details + pipeline |
