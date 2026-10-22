@@ -9,7 +9,7 @@
 
 **Production-grade realtime voice and audio engine for Flutter** — clean, echo-free bidirectional audio for AI voice conversations.
 
-> **Status:** v1.0.0-preview.1. The public API is stable for review. Platform channel protocol may receive additive changes before the stable release.
+> **Status:** v1.0.0-preview.3. The public API is stable for review. Platform channel protocol may receive additive changes before the stable release.
 
 ---
 
@@ -24,6 +24,8 @@
 - [Diagnostics](#diagnostics)
 - [API Reference](#api-reference)
 - [Architecture](#architecture)
+- [Media Playback](#media-playback)
+- [Asymmetric Sample Rates](#asymmetric-sample-rates)
 - [Platform Requirements](#platform-requirements)
 - [Design Philosophy](#design-philosophy)
 - [Rejected Approaches](#rejected-approaches)
@@ -63,6 +65,8 @@ Boat uses Android's native `AudioRecord`, `AudioTrack`, and `AudioEffects` APIs,
 - **Typed Events** — Sealed `BoatEvent` hierarchy for state, route, effect, and error observation
 - **Diagnostics** — Device info, per-effect status, frame counters, session uptime
 - **Typed Exceptions** — `BoatConfigException`, `BoatPermissionException`, `BoatNativeException`, `BoatStateException`
+- **Independent Media Bus** — `BoatMediaPlayer` for UI sounds and WAV clips, separate from the AEC-coupled voice session
+- **Asymmetric Sample Rates** — Capture and playback can run at different rates (e.g. 16 kHz in, 24 kHz out) on one AEC-coupled session
 - **Zero External Dependencies** — Only `plugin_platform_interface` beyond Flutter SDK
 - **Dual-Platform** — Android (API 26+) and iOS (13.0+) from v1.0
 
@@ -74,7 +78,7 @@ Boat uses Android's native `AudioRecord`, `AudioTrack`, and `AudioEffects` APIs,
 
 ```yaml
 dependencies:
-  boat: 1.0.0-preview.1
+  boat: 1.0.0-preview.3
 ```
 
 ### 2. Platform Setup
@@ -157,7 +161,8 @@ await engine.dispose();
 
 ```dart
 await engine.start(BoatConfig(
-  sampleRate: 16000,          // Hz
+  sampleRate: 16000,          // Hz — capture rate
+  playbackSampleRate: null,   // Hz — null means "same as sampleRate"
   channelCount: 1,            // mono
   bitsPerSample: 16,          // 16-bit PCM (only supported format in v1)
   bufferDurationMs: 20,       // 5-100 ms
@@ -253,6 +258,8 @@ diag.captureFrameCount;    // frames captured since start
 diag.playbackFrameCount;   // frames played since start
 diag.uptime;               // Duration since engine start
 diag.scoDeviceConnected;   // true if Bluetooth SCO is active (8 kHz narrowband)
+diag.captureSampleRate;    // capture rate actually applied by the platform
+diag.playbackSampleRate;   // playback rate actually applied by the platform
 diag.effectStatus;         // Map<AudioEffectType, EffectStatus>
 ```
 
@@ -320,6 +327,36 @@ class BoatPermission {
 }
 ```
 
+### BoatMediaPlayer
+
+```dart
+class BoatMediaPlayer {
+  // Lifecycle
+  Future<void> start([BoatMediaConfig? config]);
+  Future<void> stop();
+  Future<void> dispose();         // terminal — cannot restart
+
+  // Sources
+  Future<void> playPcm(Uint8List pcm);
+  Future<void> playFile(String path, {bool loop = false});
+  Future<void> playAsset(String assetKey, {bool loop = false});
+
+  // Transport
+  Future<void> pause();
+  Future<void> resume();
+  Future<void> seek(Duration position);
+  Future<void> setVolume(double volume);
+  Future<void> flush();
+
+  // State
+  BoatMediaState get state;
+  Stream<BoatMediaEvent> get events;
+  Future<BoatMediaStatus> get status;
+}
+```
+
+`BoatMediaStatus` reports `state`, `position`, `duration` (null for streaming PCM), `volume`, `sourceKind`, and `loop`.
+
 ### Exception Hierarchy
 
 ```
@@ -328,6 +365,11 @@ BoatException
 ├── BoatPermissionException  — microphone permission denied
 ├── BoatNativeException      — native audio layer failure
 └── BoatStateException       — invalid lifecycle transition
+
+BoatMediaException
+├── BoatMediaBusyException   — voice engine owns the audio session
+├── BoatMediaFormatException — unsupported WAV format
+└── BoatMediaStateException  — invalid media lifecycle transition
 ```
 
 ---
@@ -397,8 +439,7 @@ Media and voice are **mutually exclusive owners of the OS audio session**:
 - Starting the voice engine stops media and emits `BoatMediaPreempted`.
 
 Because the buses never overlap, there is no mixing, no ducking, and no
-per-platform echo policy to reason about. See
-[`docs/core/architecture.md`](docs/core/architecture.md) → Media Playback Bus.
+per-platform echo policy to reason about.
 
 > **Not for AI/TTS audio.** The media bus is mutually exclusive with the voice
 > session, so it cannot play the AI's voice while capture runs — and on Android
@@ -448,13 +489,13 @@ print('${d.captureSampleRate} Hz in / ${d.playbackSampleRate} Hz out');
 
 | Platform | Minimum Version | Notes |
 |----------|----------------|-------|
-| Android | API 26 (8.0) | `AudioRecord.Builder` and `AudioFocusRequest.Builder` require API 26+ |
-| iOS | 13.0 | `AVAudioEngine` + voiceChat mode. Privacy manifest bundled in pod. |
+| Android | API 26 (8.0) | `AudioRecord.Builder` and `AudioFocusRequest.Builder` require API 26+. Built-in Kotlin (AGP 9+) — no Kotlin Gradle Plugin required. |
+| iOS | 13.0 | `AVAudioEngine` + voiceChat mode. Privacy manifest bundled via CocoaPods and Swift Package Manager. |
 
 | Requirement | Version |
 |-------------|---------|
-| Dart SDK | >=3.9.2 |
-| Flutter | >=3.3.0 |
+| Dart SDK | >=3.12.0 |
+| Flutter | >=3.44.0 |
 
 **Device notes:**
 
